@@ -404,7 +404,7 @@ int swapAuthorizationToken(csocket* authorizationcsocket, std::string& strAuthor
     }
 
     bool bIsDataReadable = false;
-    authorizationcsocket->canRead(&bIsDataReadable, 0.3f);
+    authorizationcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
     if(!bIsDataReadable && strData == "<iq/>")
     {
         bIsDataReadable = true;
@@ -415,7 +415,7 @@ int swapAuthorizationToken(csocket* authorizationcsocket, std::string& strAuthor
         memset(databuffer, 0, 1000000);
         authorizationcsocket->read(databuffer, 1000000, false);
         strData.append(databuffer);
-        authorizationcsocket->canRead(&bIsDataReadable, 0.3f);
+        authorizationcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
     };
 
     // Parse the session authorization token from the response
@@ -504,7 +504,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
     }
 
     bool bIsDataReadable = false;
-    commandcsocket->canRead(&bIsDataReadable, 0.6f);
+    commandcsocket->canRead(&bIsDataReadable, NULL, 0.6f);
 
     if(bIsDataReadable == false && strData == "<iq/>")
     {
@@ -518,7 +518,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
             memset(databuffer, 0, 1000000);
             commandcsocket->read(databuffer, 1000000, false);
             strData.append(databuffer);
-            commandcsocket->canRead(&bIsDataReadable, 0.3f);
+            commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
         }
     }
 
@@ -539,7 +539,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
     }
     else if(strCommand == "get_config" || strCommand == "get_config_raw")
     {
-        commandcsocket->canRead(&bIsDataReadable, 0.3f);
+        commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
 
 #ifndef WIN32
         bIsDataReadable = true;
@@ -550,7 +550,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
             memset(databuffer, 0, 1000000);
             commandcsocket->read(databuffer, 1000000, false);
             strData.append(databuffer);
-            commandcsocket->canRead(&bIsDataReadable, 0.3f);
+            commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
         }
 
 
@@ -1216,7 +1216,7 @@ void readXml(csocket* commandcsocket) {
     bool canRead;
 
     while(1) {
-        if (commandcsocket->canRead(&canRead, 3) == FAILURE) {
+        if (commandcsocket->canRead(&canRead, NULL, 3) == FAILURE) {
             exit(1);
         }
 

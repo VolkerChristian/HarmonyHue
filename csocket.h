@@ -35,7 +35,7 @@ public:
 	void            close();
     static int      resolveHost( const std::string& szRemoteHostName, struct hostent** pHostEnt );
     int             connect( const char* remoteHost, unsigned int remotePort );
-    int             canRead( bool* readyToRead, float waitTime = TO_INFINITY );
+    int             canRead( bool* readyToRead, float* remainingTime, float waitTime = TO_INFINITY );
     virtual int     read( char* pDataBuffer, unsigned int numBytesToRead, bool bReadAll );
     virtual int     write( const char* pDataBuffer, unsigned int numBytesToWrite );
     SocketState     getState( void ) const;

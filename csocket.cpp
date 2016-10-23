@@ -187,7 +187,7 @@ int csocket::connect( const char* remoteHost, unsigned int remotePort )
 }
 
 
-int csocket::canRead( bool* readyToRead, float waitTime )
+int csocket::canRead( bool* readyToRead, float* remainingTime,  float waitTime )
 {
     if (m_socketState != CONNECTED )
     {
@@ -219,6 +219,10 @@ int csocket::canRead( bool* readyToRead, float waitTime )
 #endif
 
     int n = select(nfds, &fds, NULL, NULL, &timeout);
+	if (remainingTime != NULL) {
+		*remainingTime = timeout.tv_sec + timeout.tv_usec / 1000000.0f;
+	}
+	
     if ( n < 0 ) 
     {
         m_socketState = ERRORED;
