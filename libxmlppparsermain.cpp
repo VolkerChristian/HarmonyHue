@@ -20,22 +20,20 @@ int main1(csocket* commandcsocket) {
     // Incremental parsing, sometimes useful for network connections:
     auto return_code = EXIT_SUCCESS;
     try {
-        std::cout << std::endl << "Incremental SAX Parser:" << std::endl;
         char buffer[64];
         const size_t buffer_size = sizeof(buffer) / sizeof(char);
-
+        int bytesRead = 0;
+		bool canRead = false;
+		float remainingSecs = 30;
+		
+        std::cout << std::endl << "Incremental SAX Parser:" << std::endl;
+		
         //Parse the file:
         MySaxParser parser;
-//		parser.set_parser_options(xmlParserOption::XML_PARSE_NOCDATA);
         parser.set_substitute_entities(true);
-        int n = 0;
-
+		
         Glib::ustring document("<begin>");
         parser.parse_chunk(document);
-
-		bool canRead = false;
-		
-		float remainingSecs = 30;
 		
         do {
 			if (commandcsocket->canRead(&canRead, &remainingSecs, remainingSecs) == FAILURE) {
@@ -43,12 +41,12 @@ int main1(csocket* commandcsocket) {
 			}
             if (canRead) {
                 std::memset(buffer, 0, buffer_size);
-                n = commandcsocket->read(buffer, buffer_size-1, false);
-                if(n > 0) {
+                bytesRead = commandcsocket->read(buffer, buffer_size-1, false);
+                if(bytesRead > 0) {
                     // We use Glib::ustring::ustring(InputIterator begin, InputIterator end)
                     // instead of Glib::ustring::ustring( const char*, size_type ) because it
                     // expects the length of the string in characters, not in bytes.
-                    Glib::ustring input(buffer, buffer + n);
+                    Glib::ustring input(buffer, buffer + bytesRead);
                     parser.parse_chunk(input);
                 }
             } else {
@@ -62,7 +60,7 @@ int main1(csocket* commandcsocket) {
 				remainingSecs = 30;
             }
         }
-        while(n > 0 || errno == EINTR || !canRead);
+        while(bytesRead > 0 || errno == EINTR || !canRead);
 		
 		document = "</begin>";
         parser.parse_chunk(document);

@@ -1,3 +1,23 @@
+------- ON -------
+"activityId":"18396938", "activityStatus":1, "runningActivityList":""
+"activityId":"18396938", "activityStatus":2, "runningActivityList":""
+"activityId":"18396938", "activityStatus":2, "runningActivityList":"18396938"
+
+------- OFF ------
+"activityId":"18396938", "activityStatus":3, "runningActivityList":"18396938"
+"activityId":"-1", "activityStatus":0,"runningActivityList":"18396938"
+"activityId":"-1", "activityStatus":0,"runningActivityList":""
+
+-------- Switch from 18396935 to 18396938 --------
+"activityId":"18396938", "activityStatus":1, "runningActivityList":"18396935"
+"activityId":"18396938", "activityStatus":2, "runningActivityList":"18396935"
+"activityId":"18396938", "activityStatus":2, "runningActivityList":"18396938"
+
+activityStatus = 1 ... start up
+                 2 ... running
+				 3 ... stop
+				 0 ... stopped
+
 <message content-length="748"/>#012
 	<message from="HarmonyOne_Pop@qa1.com" to="ab903454-7bee-4410-9eea-bb5355bb667e">
 		<event xmlns="connect.logitech.com" type="connect.stateDigest?notify">

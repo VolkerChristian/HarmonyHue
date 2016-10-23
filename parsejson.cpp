@@ -19,8 +19,7 @@ int main2(const char* text) {
 
     root = json_loads(text, 0, &error);
 
-    if(root)
-    {
+    if(root) {
         json_t *activityStatus;
 
         activityStatus = json_object_get(root, "activityStatus");
