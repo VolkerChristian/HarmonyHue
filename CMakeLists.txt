@@ -16,9 +16,6 @@ find_package(LibXML++ REQUIRED)
 include_directories(${LibXML++_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${LibXML++_LIBRARIES})
 
-find_package(LibXml2 REQUIRED)
-include_directories(${LIBXML2_INCLUDE_DIR})
-
 find_package(Jansson REQUIRED)
 include_directories(${JANSSON_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${JANSSON_LIBRARIES})
