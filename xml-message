@@ -1,0 +1,74 @@
+<message content-length="748"/>#012
+	<message from="HarmonyOne_Pop@qa1.com" to="ab903454-7bee-4410-9eea-bb5355bb667e">
+		<event xmlns="connect.logitech.com" type="connect.stateDigest?notify">
+			<![CDATA[{
+				"sleepTimerId":-1,
+				"configVersion":514,
+				"activityId":"-1",
+				"errorCode":"200",
+				"syncStatus":0,
+				"time":1476986809,
+				"stateVersion":257,
+				"tzOffset":"7200",
+				"mode":3,
+				"hubSwVersion":"4.11.6",
+				"deviceSetupState":[],
+				"tzoffset":"7200",
+				"isSetupComplete":true,
+				"contentVersion":177,
+				"wifiStatus":1,
+				"discoveryServer":"https:\/\/svcs.myharmony.com\/Discovery\/Discovery.svc",
+				"activityStatus":0,
+				"runningActivityList":"18396933",
+				"tz":"CET-1CEST,M3.4.0,M10.5.0\/3",
+				"activitySetupState":false,
+				"updates":{
+					"100":"4.10.30",
+					"106":"4.10.30"
+				},
+				"hubUpdate":false,
+				"sequence":false,
+				"accountId":"7690437"
+			}]]>
+		</event>
+	</message>
+<message content-length="233"/>#012
+	<message from="HarmonyOne_Pop@qa1.com" to="ab903454-7bee-4410-9eea-bb5355bb667e">
+		<event xmlns="connect.logitech.com" type="harmony.engine?startActivityFinished">
+			<![CDATA[activityId=-1:errorCode=200:errorString=OK]]>
+		</event>
+	</message>
+<message content-length="740"/>#012
+	<message from="HarmonyOne_Pop@qa1.com" to="ab903454-7bee-4410-9eea-bb5355bb667e">
+		<event xmlns="connect.logitech.com" type="connect.stateDigest?notify">
+			<![CDATA[{
+				"sleepTimerId":-1,
+				"configVersion":514,
+				"activityId":"-1",
+				"errorCode":"200",
+				"syncStatus":0,
+				"time":1476986809,
+				"stateVersion":258,
+				"tzOffset":"7200",
+				"mode":3,
+				"hubSwVersion":"4.11.6",
+				"deviceSetupState":[],
+				"tzoffset":"7200",
+				"isSetupComplete":true,
+				"contentVersion":177,
+				"wifiStatus":1,
+				"discoveryServer":"https:\/\/svcs.myharmony.com\/Discovery\/Discovery.svc",
+				"activityStatus":0,
+				"runningActivityList":"",
+				"tz":"CET-1CEST,M3.4.0,M10.5.0\/3",
+				"activitySetupState":false,
+				"updates":{
+					"100":"4.10.30",
+					"106":"4.10.30"
+				},
+				"hubUpdate":false,
+				"sequence":false,
+				"accountId":"7690437"
+			}]]>
+		</event>
+	</message>

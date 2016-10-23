@@ -1,29 +1,33 @@
 /******************************************************************************
-  Permission is hereby granted, free of charge, to any person obtaining a copy  
-  of this software and associated documentation files (the "Software"), to deal 
-  in the Software without restriction, including without limitation the rights 
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
-  copies of the Software, and to permit persons to whom the Software is 
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
 
-  The above copyright notice and this permission notice shall be included in all 
+  The above copyright notice and this permission notice shall be included in all
   copies or substantial portions of the Software.
 
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
   SOFTWARE.
 */
 
+#include <syslog.h>
+
 #include <algorithm>
-#include <string>
 #include <iostream>
 #include <fstream>
 #include <map>
+#include <string>
 #include <vector>
+#include <cerrno>
+#include "initdaemon.h"
 #include "csocket.h"
 
 std::string errorString;
@@ -40,6 +44,7 @@ std::string resultString;
 #define sprintf sprintf_s
 #endif
 
+/*
 void log(const char* message, bool bQuiet)
 {
     if(bQuiet)
@@ -48,6 +53,18 @@ void log(const char* message, bool bQuiet)
     }
 
     printf("%s\n", message);
+}*/
+
+void logerror(const char* format, std::string message) {
+    syslog(LOG_ERR, format, message.c_str());
+}
+
+void logwarn(const char* format, std::string message) {
+    syslog(LOG_WARNING, format, message.c_str());
+}
+
+void loginfo(const char* format, std::string message) {
+    syslog(LOG_INFO, format, message.c_str());
 }
 
 class Action
@@ -117,7 +134,7 @@ public:
     }
 };
 
-static const std::string base64_chars = 
+static const std::string base64_chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
@@ -180,7 +197,8 @@ std::string base64_decode(std::string const& encoded_string) {
     std::string ret;
 
     while (in_len-- && ( encoded_string[in_] != '=') && is_base64(encoded_string[in_])) {
-        char_array_4[i++] = encoded_string[in_]; in_++;
+        char_array_4[i++] = encoded_string[in_];
+        in_++;
         if (i ==4) {
             for (i = 0; i <4; i++)
                 char_array_4[i] = base64_chars.find(char_array_4[i]);
@@ -221,7 +239,7 @@ int harmonyWebServiceLogin(std::string strUserEmail, std::string strPassword, st
     {
         errorString = "harmonyWebServiceLogin : Empty email or password provided";
         return 1;
-    } 
+    }
 
 
     // Build JSON request
@@ -268,7 +286,7 @@ int harmonyWebServiceLogin(std::string strUserEmail, std::string strPassword, st
     if(pos == std::string::npos)
     {
         errorString = "harmonyWebServiceLogin : Logitech web service response does not contain a login authorization token";
-        return 1;  
+        return 1;
     }
 
     strAuthorizationToken = strHttpPayloadText.substr(pos + strAuthTokenTag.length());
@@ -305,14 +323,14 @@ int startCommunication(csocket* communicationcsocket, std::string strUserName, s
     {
         errorString = "startCommunication : Invalid communication parameter(s) provided";
         return 1;
-    } 
+    }
 
     // Start communication
     std::string data = "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
     communicationcsocket->write(data.c_str(), data.length());
     memset(databuffer, 0, 1000000);
     communicationcsocket->read(databuffer, 1000000, false);
-    
+
     std::string strData = databuffer;/* <- Expect: <?xml version='1.0' encoding='iso-8859-1'?><stream:stream from='' id='XXXXXXXX' version='1.0' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams'><stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms></stream:features> */
 
     data = "<auth xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\" mechanism=\"PLAIN\">";
@@ -323,20 +341,20 @@ int startCommunication(csocket* communicationcsocket, std::string strUserName, s
     data.append(base64_encode(tmp.c_str(), tmp.length()));
     data.append("</auth>");
     communicationcsocket->write(data.c_str(), data.length());
-    
+
     memset(databuffer, 0, 1000000);
     communicationcsocket->read(databuffer, 1000000, false);
-    
+
     strData = databuffer; /* <- Expect: <success xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/> */
     if(strData != "<success xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>")
     {
         errorString = "startCommunication : connection error";
         return 1;
-    } 
+    }
 
     data = "<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>";
     communicationcsocket->write(data.c_str(), data.length());
-    
+
     memset(databuffer, 0, 1000000);
     communicationcsocket->read(databuffer, 1000000, false);
 
@@ -361,8 +379,8 @@ int swapAuthorizationToken(csocket* authorizationcsocket, std::string& strAuthor
 
     std::string strData;
     std::string sendData;
-    
-    // GENERATE A LOGIN ID REQUEST USING THE HARMONY ID AND LOGIN AUTHORIZATION TOKEN 
+
+    // GENERATE A LOGIN ID REQUEST USING THE HARMONY ID AND LOGIN AUTHORIZATION TOKEN
     sendData = "<iq type=\"get\" id=\"";
     sendData.append(CONNECTION_ID);
     sendData.append("\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.pair\">token=");
@@ -370,19 +388,19 @@ int swapAuthorizationToken(csocket* authorizationcsocket, std::string& strAuthor
     sendData.append(":name=foo#iOS6.0.1#iPhone</oa></iq>");
 
     std::string strIdentityTokenTag = "identity=";
-    int pos = std::string::npos;
-    
+    size_t pos = std::string::npos;
+
     authorizationcsocket->write(sendData.c_str(), sendData.length());
-    
+
     memset(databuffer, 0, 1000000);
     authorizationcsocket->read(databuffer, 1000000, false);
-        
+
     strData = databuffer; /* <- Expect: <iq/> ... <success xmlns= ... identity=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX:status=succeeded ... */
 
     if(strData.find("<iq/>") != 0)
     {
-         errorString = "swapAuthorizationToken : Invalid Harmony response";
-         return 1;  
+        errorString = "swapAuthorizationToken : Invalid Harmony response";
+        return 1;
     }
 
     bool bIsDataReadable = false;
@@ -405,16 +423,16 @@ int swapAuthorizationToken(csocket* authorizationcsocket, std::string& strAuthor
     if(pos == std::string::npos)
     {
         errorString = "swapAuthorizationToken : Logitech Harmony response does not contain a session authorization token";
-        return 1;  
+        return 1;
     }
-    
+
     strAuthorizationToken = strData.substr(pos + strIdentityTokenTag.length());
 
     pos = (int)strAuthorizationToken.find(":status=succeeded");
     if(pos == std::string::npos)
     {
         errorString = "swapAuthorizationToken : Logitech Harmony response does not contain a valid session authorization token";
-        return 1;  
+        return 1;
     }
     strAuthorizationToken = strAuthorizationToken.substr(0, pos);
 
@@ -441,7 +459,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
     std::string strData;
 
     std::string sendData;
-    
+
     sendData = "<iq type=\"get\" id=\"";
     sendData.append(CONNECTION_ID);
     sendData.append("\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?");
@@ -453,7 +471,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
     }
     if(lstrCommand == "get_config_raw")
     {
-        sendData.append("config\"></oa></iq>");        
+        sendData.append("config\"></oa></iq>");
     }
     else if (lstrCommand == "start_activity")
     {
@@ -471,18 +489,18 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
     }
 
     commandcsocket->write(sendData.c_str(), sendData.length());
-    
+
     memset(databuffer, 0, 1000000);
     commandcsocket->read(databuffer, 1000000, false);
     strData = databuffer; /* <- Expect: strData  == <iq/> */
-    
+
     std::string iqTag = "<iq/>";
     int pos = (int)strData.find(iqTag);
 
     if(pos != 0)
     {
-        errorString = "submitCommand: Invalid Harmony response";
-        return 1;  
+        errorString = "submitCommand: Invalid Harmony response: " + strData;
+        return 1;
     }
 
     bool bIsDataReadable = false;
@@ -503,7 +521,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
             commandcsocket->canRead(&bIsDataReadable, 0.3f);
         }
     }
-    
+
     resultString = strData;
 
     if(strCommand == "get_current_activity_id" || strCommand == "get_current_activity_id_raw")
@@ -534,7 +552,7 @@ int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, s
             strData.append(databuffer);
             commandcsocket->canRead(&bIsDataReadable, 0.3f);
         }
-        
+
 
         pos = strData.find("![CDATA[{");
         if(pos != std::string::npos)
@@ -556,7 +574,7 @@ int parseAction(const std::string& strAction, std::vector<Action>& vecDeviceActi
     int commandStart = strAction.find(commandTag);
     int commandEnd = strAction.find("\\\",\\\"", commandStart);
     a.m_strCommand = strAction.substr(commandStart + commandTag.length(), commandEnd - commandStart - commandTag.length());
-    
+
     const std::string deviceIdTag = "\\\"deviceId\\\":\\\"";
     int deviceIDStart = strAction.find(deviceIdTag, commandEnd);
 
@@ -593,12 +611,12 @@ int parseFunction(const std::string& strFunction, std::vector<Function>& vecDevi
     {
         return 1;
     }
-    
+
     f.m_strName = strFunction.substr(0, functionNameEnd);
 
     const std::string actionTag = "\"action\":\"";
     int actionStart = strFunction.find(actionTag, functionNameEnd);
-    
+
     while(actionStart != std::string::npos)
     {
         const std::string labelTag = "\"label\":\"";
@@ -611,7 +629,7 @@ int parseFunction(const std::string& strFunction, std::vector<Function>& vecDevi
 
         std::string strAction = strFunction.substr(actionStart + actionTag.length(), actionEnd - actionStart - actionTag.length());
         parseAction(strAction, f.m_vecActions, strDeviceID);
-        
+
         actionStart = strFunction.find(actionTag, actionEnd);
     }
 
@@ -649,12 +667,12 @@ int parseConfiguration(const std::string& strConfiguration, std::map< std::strin
         if(activityStart != std::string::npos )
         {
             std::string activityString = strConfiguration.substr(activityStart+1, activityTypeDisplayNameStartPos - activityStart-1);
-            
+
             std::string labelTag = "\"label\":\"";
             std::string idTag = "\",\"id\":\"";
             int labelStartPos = activityString.find(labelTag);
             int idStartPos = activityString.find(idTag, labelStartPos);
-                        
+
             // Try to pick up the label
             std::string strActivityLabel = activityString.substr(labelStartPos+9, idStartPos-labelStartPos-9);
             idStartPos += idTag.length();
@@ -768,7 +786,7 @@ const std::string ReadAuthorizationTokenFile()
     getline (AuthorizationTokenFileStream,strAuthorizationToken);
 
     AuthorizationTokenFileStream.close();
-    
+
     return strAuthorizationToken;
 }
 
@@ -787,6 +805,8 @@ int WriteAuthorizationTokenFile(const std::string& strAuthorizationToken)
     return 0;
 }
 
+int main1(csocket* commandcsocket);
+void readXml(csocket* commandcsocket);
 
 int main(int argc, char * argv[])
 {
@@ -815,10 +835,13 @@ int main(int argc, char * argv[])
     std::string strUserEmail = argv[1];
     std::string strUserPassword = argv[2];
     std::string strHarmonyIP = argv[3];
-	std::string strCommand;
+    // Standard action
+    std::string strCommand = "get_current_activity_id_raw";
     std::string strCommandParameterPrimary;
     std::string strCommandParameterSecondary;
-    
+
+    int previousState = -1;
+
     int harmonyPortNumber = HARMONY_COMMUNICATION_PORT;
 
     // User requested an action to be performed
@@ -858,33 +881,35 @@ int main(int argc, char * argv[])
         csocket authorizationcsocket;
         if(connectToHarmony(strHarmonyIP, harmonyPortNumber, authorizationcsocket) == 1)
         {
-            log("HARMONY COMMUNICATION LOGIN    : FAILURE", false);
-            printf("ERROR : %s\n", errorString.c_str());
+//            log("HARMONY COMMUNICATION LOGIN    : FAILURE", false);
+            logerror("%s", "Harmony-Hub login: " + errorString);
+//            fprintf(stderr, "ERROR : %s\n", errorString.c_str());
             return 1;
         }
 
         if(swapAuthorizationToken(&authorizationcsocket, strAuthorizationToken) == 0)
         {
-            // Authorization Token found in the file worked.  
+            // Authorization Token found in the file worked.
             // Bypass authorization through Logitech's servers.
-            log("LOGITECH WEB SERVICE LOGIN     : BYPASSED", bQuietMode);
-
+//            log("LOGITECH WEB SERVICE LOGIN     : BYPASSED", bQuietMode);
+            loginfo("%s", "Logitech web-service login bypassed");
             bAuthorizationComplete = true;
         }
-        
+
     }
 
-    
+
     if(bAuthorizationComplete == false)
     {
         // Log into the Logitech Web Service to retrieve the login authorization token
         if(harmonyWebServiceLogin(strUserEmail, strUserPassword, strAuthorizationToken) == 1)
         {
-            log("LOGITECH WEB SERVICE LOGIN     : FAILURE", false);
-            printf("ERROR : %s\n", errorString.c_str());
+//            log("LOGITECH WEB SERVICE LOGIN     : FAILURE", false);
+            logerror("%s", "Logitech web-service login: " + errorString);
+//            fprintf(stderr, "ERROR : %s\n", errorString.c_str());
             return 1;
         }
-        log("LOGITECH WEB SERVICE LOGIN     : SUCCESS", bQuietMode);
+        loginfo("%s", "Logitech web-service login success");
 
         //printf("\nLogin Authorization Token is: %s\n\n", strAuthorizationToken.c_str());
 
@@ -892,192 +917,383 @@ int main(int argc, char * argv[])
         // on future sessions
         WriteAuthorizationTokenFile(strAuthorizationToken);
 
-        // Log into the harmony hub to convert the login authorization token for a 
+        // Log into the harmony hub to convert the login authorization token for a
         // session authorization token
-    
+
         csocket authorizationcsocket;
         if(connectToHarmony(strHarmonyIP, harmonyPortNumber, authorizationcsocket) == 1)
         {
-            log("HARMONY COMMUNICATION LOGIN    : FAILURE", false);
-            printf("ERROR : %s\n", errorString.c_str());
+//            log("HARMONY COMMUNICATION LOGIN    : FAILURE", false);
+            logerror("%s", "Harmony-Hub login: " + errorString);
+//            fprintf(stderr, "ERROR : %s\n", errorString.c_str());
             return 1;
         }
 
 
         if(swapAuthorizationToken(&authorizationcsocket, strAuthorizationToken) == 1)
         {
-            log("HARMONY COMMUNICATION LOGIN    : FAILURE", false);
-            printf("ERROR : %s\n", errorString.c_str());
+//            log("HARMONY COMMUNICATION LOGIN    : FAILURE", false);
+            logerror("%s", "Harmony communication login: " + errorString);
+//            fprintf(stderr, "ERROR : %s\n", errorString.c_str());
             return 1;
         }
     }
 
-    log("HARMONY COMMUNICATION LOGIN    : SUCCESS", bQuietMode);
+    loginfo("%s", "Harmony communication login success");
+//    log("HARMONY COMMUNICATION LOGIN    : SUCCESS", bQuietMode);
 
 
     //printf("\nSession Authorization Token is: %s\n\n", strAuthorizationToken.c_str());
 
-    // We've successfully obtained our session authorization token from the harmony hub 
+    // We've successfully obtained our session authorization token from the harmony hub
     // using the login authorization token we received earlier from the Logitech web service.
-    // Now, disconnect from the harmony and reconnect using the mangled session token 
+    // Now, disconnect from the harmony and reconnect using the mangled session token
     // as our username and password to issue a command.
 
+//	start_daemon ("logihue", int LOG_DAEMON);
 
     csocket commandcsocket;
-    if(connectToHarmony(strHarmonyIP, harmonyPortNumber, commandcsocket) == 1)
-    {
-        log("HARMONY COMMAND SUBMISSION     : FAILURE", false);
-        printf("ERROR : %s\n", errorString.c_str());
-        return 1;
-    }
-
-    std::string strUserName = strAuthorizationToken;
-    //strUserName.append("@connect.logitech.com/gatorade.");
-    std::string strPassword = strAuthorizationToken;
-    
-    if(startCommunication(&commandcsocket, strUserName, strPassword) == 1)
-    {
-        errorString = "Communication failure";
-        return 1;
-    }
-
     while(true) {
-    std::string lstrCommand = strCommand;
-
-    if(strCommand == "list_activities"              || 
-        strCommand == "list_activities_raw"         || 
-        strCommand == "list_devices"                || 
-        strCommand == "list_devices_raw"            || 
-        strCommand == "list_commands"               || 
-        strCommand == "list_device_commands"        || 
-        strCommand == "list_device_commands_raw"    || 
-        strCommand == "get_config")
-    {
-        lstrCommand = "get_config_raw";
-    }
-
-    if(submitCommand(&commandcsocket, strAuthorizationToken, lstrCommand, strCommandParameterPrimary, strCommandParameterSecondary) == 1)
-    {
-        log("HARMONY COMMAND SUBMISSION     : FAILURE", false);
-        printf("ERROR : %s\n", errorString.c_str());
-		continue;
-//        return 1;
-    }
-
-    log("HARMONY COMMAND SUBMISSION     : SUCCESS", bQuietMode);
-    
-    if(lstrCommand == "get_config_raw")
-    {
-        std::map< std::string, std::string> mapActivities;
-        std::vector< Device > vecDevices;
-        if(parseConfiguration(resultString, mapActivities, vecDevices) == 1)
-        {
-            log("PARSE ACTIVITIES AND DEVICES   : FAILURE", false);
-            printf("ERROR : %s\n", errorString.c_str());
-            return 1;
-        }
-
-        if(strCommand == "list_activities" || strCommand == "list_activities_raw" )
-        {
-            resultString = "";
-
-            if(strCommand == "list_activities")
+        if (commandcsocket.getState() != csocket::CONNECTED) {
+            if(connectToHarmony(strHarmonyIP, harmonyPortNumber, commandcsocket) == 1)
             {
-                resultString = "Activities Available via Harmony : \n\n";
+                commandcsocket.close();
+//                log("HARMONY COMMAND SUBMISSION     : FAILURE", false);
+                logwarn("%s", "Harmony connect: " + errorString);
+//                fprintf(stderr, "ERROR : %s\n", errorString.c_str());
+                sleep(3);
+                continue;
+            } else {
+                loginfo("%s", "Harmony connect: success");
             }
-        
-            std::map< std::string, std::string>::iterator it = mapActivities.begin();
-            std::map< std::string, std::string>::iterator ite = mapActivities.end();
-            for(; it != ite; ++it)
-            {
-                resultString.append(it->first);
-                resultString.append(" - ");
-                resultString.append(it->second);
-                resultString.append("\n");
 
+            std::string strUserName = strAuthorizationToken;
+            //strUserName.append("@connect.logitech.com/gatorade.");
+            std::string strPassword = strAuthorizationToken;
+
+            if(startCommunication(&commandcsocket, strUserName, strPassword) == 1)
+            {
+                commandcsocket.close();
+//                errorString = "Communication failure";
+                logwarn("%s", "Communication failure");
+//                fprintf(stderr, "ERROR : %s\n", errorString.c_str());
+                sleep(3);
+                continue;
+            } else {
+                loginfo("%s", "Harmony establishe communication: success");
             }
         }
 
-        if( strCommand == "list_devices" || strCommand == "list_devices_raw" )
-        {
-            resultString = "";
-            
-            if( strCommand == "list_devices" )
-            {
-                resultString = "Devices Controllable via Harmony : \n\n";
-            }
+        std::string lstrCommand = strCommand;
 
-            std::vector< Device >::iterator it = vecDevices.begin();
-            std::vector< Device >::iterator ite = vecDevices.end();
-            for(; it != ite; ++it)
-            {
-                resultString.append(it->m_strID );
-                resultString.append(" - ");
-                resultString.append(it->m_strLabel );
-                resultString.append("\n");
-                
-            }
+        if(strCommand == "list_activities"              ||
+                strCommand == "list_activities_raw"         ||
+                strCommand == "list_devices"                ||
+                strCommand == "list_devices_raw"            ||
+                strCommand == "list_commands"               ||
+                strCommand == "list_device_commands"        ||
+                strCommand == "list_device_commands_raw"    ||
+                strCommand == "get_config")
+        {
+            lstrCommand = "get_config_raw";
         }
 
-        if(strCommand == "list_commands" || strCommand == "list_commands_raw" )
-        {
-            resultString = "";
-            
-            if(strCommand == "list_commands")
-            {
-                resultString = "Devices Controllable via Harmony with Commands : \n\n";
-            }
-            std::vector< Device >::iterator it = vecDevices.begin();
-            std::vector< Device >::iterator ite = vecDevices.end();
-            for(; it != ite; ++it)
-            {
-                resultString.append(it->toString());
-                resultString.append("\n\n\n");
-            }
+
+        main1(&commandcsocket);
+        readXml(&commandcsocket);
+        /*
+        memset(databuffer, 0, 1000000);
+        if (commandcsocket.read(databuffer, 1000000, false) != 0) {
+        	std::cout << databuffer << std::endl;
+        } else {
+        	commandcsocket.close();
         }
 
-        if(strCommand == "list_device_commands" || strCommand == "list_device_commands_raw")
+        continue;
+        */
+
+        if(submitCommand(&commandcsocket, strAuthorizationToken, lstrCommand, strCommandParameterPrimary, strCommandParameterSecondary) == 1)
         {
-            resultString = "";
-            
-            if(strCommand == "list_device_commands")
+            commandcsocket.close();
+//            log("HARMONY COMMAND SUBMISSION     : FAILURE", false);
+            logwarn("%s", "Harmony command submission: " + errorString);
+//            fprintf(stderr, "ERROR : %s\n", errorString.c_str());
+            continue;
+        }
+
+//        log("HARMONY COMMAND SUBMISSION     : SUCCESS", bQuietMode);
+
+        if(lstrCommand == "get_config_raw")
+        {
+            std::map< std::string, std::string> mapActivities;
+            std::vector< Device > vecDevices;
+            if(parseConfiguration(resultString, mapActivities, vecDevices) == 1)
             {
-                resultString = "Harmony Commands for Device: \n\n";
+                logwarn("%s", "Parse activities and devices: " + errorString);
+//                log("PARSE ACTIVITIES AND DEVICES   : FAILURE", false);
+//                printf("ERROR : %s\n", errorString.c_str());
+                continue;
             }
-            
-            std::vector< Device >::iterator it = vecDevices.begin();
-            std::vector< Device >::iterator ite = vecDevices.end();
-            for(; it != ite; ++it)
+
+            if(strCommand == "list_activities" || strCommand == "list_activities_raw" )
             {
-                if(it->m_strID == strCommandParameterPrimary)
+                resultString = "";
+
+                if(strCommand == "list_activities")
                 {
-                    if(strCommandParameterSecondary.length())
+                    resultString = "Activities Available via Harmony : \n\n";
+                }
+
+                std::map< std::string, std::string>::iterator it = mapActivities.begin();
+                std::map< std::string, std::string>::iterator ite = mapActivities.end();
+                for(; it != ite; ++it)
+                {
+                    resultString.append(it->first);
+                    resultString.append(" - ");
+                    resultString.append(it->second);
+                    resultString.append("\n");
+
+                }
+            }
+
+            if( strCommand == "list_devices" || strCommand == "list_devices_raw" )
+            {
+                resultString = "";
+
+                if( strCommand == "list_devices" )
+                {
+                    resultString = "Devices Controllable via Harmony : \n\n";
+                }
+
+                std::vector< Device >::iterator it = vecDevices.begin();
+                std::vector< Device >::iterator ite = vecDevices.end();
+                for(; it != ite; ++it)
+                {
+                    resultString.append(it->m_strID );
+                    resultString.append(" - ");
+                    resultString.append(it->m_strLabel );
+                    resultString.append("\n");
+
+                }
+            }
+
+            if(strCommand == "list_commands" || strCommand == "list_commands_raw" )
+            {
+                resultString = "";
+
+                if(strCommand == "list_commands")
+                {
+                    resultString = "Devices Controllable via Harmony with Commands : \n\n";
+                }
+                std::vector< Device >::iterator it = vecDevices.begin();
+                std::vector< Device >::iterator ite = vecDevices.end();
+                for(; it != ite; ++it)
+                {
+                    resultString.append(it->toString());
+                    resultString.append("\n\n\n");
+                }
+            }
+
+            if(strCommand == "list_device_commands" || strCommand == "list_device_commands_raw")
+            {
+                resultString = "";
+
+                if(strCommand == "list_device_commands")
+                {
+                    resultString = "Harmony Commands for Device: \n\n";
+                }
+
+                std::vector< Device >::iterator it = vecDevices.begin();
+                std::vector< Device >::iterator ite = vecDevices.end();
+                for(; it != ite; ++it)
+                {
+                    if(it->m_strID == strCommandParameterPrimary)
                     {
-                        if(strCommandParameterSecondary == it->m_strID)
+                        if(strCommandParameterSecondary.length())
+                        {
+                            if(strCommandParameterSecondary == it->m_strID)
+                            {
+                                resultString.append(it->toString());
+                                resultString.append("\n\n\n");
+                            }
+                        }
+                        else
                         {
                             resultString.append(it->toString());
                             resultString.append("\n\n\n");
                         }
-                    }
-                    else
-                    {
-                        resultString.append(it->toString());
-                        resultString.append("\n\n\n");
-                    }
-                    
 
-                    break;
+
+                        break;
+                    }
+                }
+            }
+//            log("PARSE ACTIVITIES AND DEVICES   : SUCCESS", bQuietMode);
+        }
+
+
+        if (resultString == "-1") {
+            printf("Switched off\n");
+            if (previousState != 0) {
+                printf("Toggle Hue to <MediaOff>\n");
+                if (system("/home/pi/harmonyhueconnect/mediaoff") == 0) {
+                    previousState = 0;
+                    loginfo("%s", "Set HUE to media equipement switched OFF: success");
+                } else {
+                    logwarn("%s", "Set HUE to media equipement switched OFF: failure");
+                }
+            }
+        } else {
+            printf("Switched on\n");
+            if (previousState != 1) {
+                printf("Toggle Hue to <MediaOn>\n");
+                if (system("/home/pi/harmonyhueconnect/mediaon") == 0) {
+                    previousState = 1;
+                    loginfo("%s", "Set HUE to media equipement switched ON: success");
+                } else {
+                    logwarn("%s", "Set HUE to media equipement switched ON: failure");
                 }
             }
         }
-        log("PARSE ACTIVITIES AND DEVICES   : SUCCESS", bQuietMode);
-    }
 
-    printf("%s\n\n", resultString.c_str());
-	
-	sleep(2);
-	}
+        sleep(2);
+    }
 
     return 0;
 }
 
+#include "tinyxml2.h"
+
+using namespace tinyxml2;
+
+
+ssize_t readLine(int fd, char *vptr, size_t maxlen)
+{
+    ssize_t n, rc;
+    char    c, *ptr;
+	char    s;
+
+    ptr = vptr;
+    for (n = 1; n < maxlen; n++) {
+again:
+        if ( (rc = read(fd, &c, 1)) == 1) {
+            *ptr++ = c;
+            if (c == '\n')
+                break;          /* newline is stored, like fgets() */
+        } else if (rc == 0) {
+            *ptr = 0;
+            return (n - 1);     /* EOF, n - 1 bytes were read */
+        } else {
+            if (errno == EINTR)
+                goto again;
+            return (-1);        /* error, errno set by read() */
+        }
+        
+        // State machine to detect end of <iq> element
+        // Stop reading of date when eighter an empty <iq/> 
+        // or a closing </iq> is detected.
+        if (c == 'i') s = c;
+		else if (s == 'i') {
+			if (c == 'q') s = c;
+			else s = 0;
+		} else if (s == 'q') {
+			if (c == '>') break;
+			if (c == '/') s = c;
+			else s = 0;
+		} else if (s == '/') {
+			if (c == '>') break;
+			else s = 0;
+		}
+    }
+
+    *ptr = 0;                   /* null terminate like fgets() */
+    return (n);
+}
+
+
+void readXml(csocket* commandcsocket) {
+    XMLDocument doc;
+    bool canRead;
+
+    while(1) {
+        if (commandcsocket->canRead(&canRead, 3) == FAILURE) {
+            exit(1);
+        }
+
+        if (canRead) {
+            memset(databuffer, 0, 1000000);
+            if (readLine(commandcsocket->m_socket, databuffer, 1000000) == 0) {
+                exit(1);
+            }
+
+            std::string strData = databuffer;
+
+            if(strData.find("<iq") != 0) {
+                doc.Parse(databuffer);
+
+                XMLElement* messageElementCL = doc.FirstChildElement("message");
+
+                int contentLength = 0;
+                messageElementCL->QueryIntAttribute( "content-length", &contentLength );
+
+                if (contentLength != 0) {
+                    memset(databuffer, 0, 1000000);
+                    if (commandcsocket->read(databuffer, contentLength, true) == 0) {
+                        exit(1);
+                    }
+
+                    doc.Parse(databuffer);
+
+                    const XMLElement* message = doc.FirstChildElement("message");
+                    const XMLAttribute* mattribute = message->FindAttribute("from");
+
+//                    std::cout << "From: " << mattribute->Value() << ", ";
+
+                    if (strcmp(mattribute->Value(), "HarmonyOne_Pop@qa1.com") == 0) {
+
+                        const XMLElement* event = message->FirstChildElement(); //"event"
+                        const XMLAttribute* eattribute = event->FindAttribute("type");
+
+//						std::cout << "Type: " << eattribute->Value() << std::endl;
+
+                        if (strcmp(eattribute->Value(), "connect.stateDigest?notify") == 0) {
+                            const XMLNode* notify = event->FirstChild();
+
+//                            std::cout << "Notify: " << notify->Value() << std::endl;
+							std::string value(notify->Value());
+							int pos = value.find("\"activityStatus\"");
+							
+							int posNum = value.find(":", pos);
+							int posCol = value.find(",", pos);
+							
+							std::cout << "ActivityStatus: >" << value.substr(posNum + 1, posCol - posNum - 1) << "<" << std::endl;
+
+                        } else if (strcmp(eattribute->Value(), "harmony.engine?startActivityFinished") == 0) {
+                            const XMLNode* activityFinished = event->FirstChild();
+
+//                            std::cout << "StartActivityFinished: " << activityFinished->Value() << std::endl;
+                        }
+                    }
+                }
+            }
+        } else {
+//            std::cout << "Sending Hardbeat" << std::endl;
+			/*
+            write(commandcsocket->m_socket, "<iq type='get' id='2320426445' from='guest'>\
+				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.pingvnd.logitech.ping'>\
+				</oa>\
+				</iq>", strlen("<iq type='get' id='2320426445' from='guest'>\
+				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.pingvnd.logitech.ping'>\
+				</oa>\
+				</iq>"));
+			*/
+			write(commandcsocket->m_socket, "<iq type='get' id='2320426445' from='guest'>\
+				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.ping'>\
+				</oa>\
+				</iq>", strlen("<iq type='get' id='2320426445' from='guest'>\
+				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.ping'>\
+				</oa>\
+				</iq>"));
+        }
+    }
+}

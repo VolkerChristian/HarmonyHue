@@ -2,14 +2,11 @@
 #define CSOCKET_H
 
 
-#include <cerrno>
-
 #ifdef WIN32
 #include <winsock2.h>
 #include <windows.h>
 #else
 #include <netinet/in.h>
-#include <asm/errno.h>
 #include <unistd.h>
 #include <cstring>
 #endif
@@ -18,7 +15,7 @@
 #include <string>
 #define SUCCESS     0
 #define FAILURE     1
-#define INFINITY   -1
+#define TO_INFINITY   -1
 
 class csocket 
 {
@@ -34,15 +31,15 @@ public:
 
     csocket();
     ~csocket(); 
-
+	
+	void            close();
     static int      resolveHost( const std::string& szRemoteHostName, struct hostent** pHostEnt );
     int             connect( const char* remoteHost, unsigned int remotePort );
-    int             canRead( bool* readyToRead, float waitTime = INFINITY );
+    int             canRead( bool* readyToRead, float waitTime = TO_INFINITY );
     virtual int     read( char* pDataBuffer, unsigned int numBytesToRead, bool bReadAll );
     virtual int     write( const char* pDataBuffer, unsigned int numBytesToWrite );
     SocketState     getState( void ) const;
 
-private:
 
 
 #ifdef WIN32
@@ -51,6 +48,7 @@ private:
     int                 m_socket;
 #endif
 
+private:
     struct sockaddr_in  m_localSocketAddr;
     struct sockaddr_in  m_remoteSocketAddr;
 

@@ -1,0 +1,5 @@
+#!/bin/sh
+
+curl -s -X PUT --data '{"flag" : false}' http://philips-hue.feuerweg.vchrist.at/api/qjayddogNNF6X4C9IiVTjvd-XclsCXhT8sF1MyvL/sensors/7/state
+
+exit $?

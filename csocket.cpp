@@ -43,6 +43,11 @@ csocket::csocket() : m_socketState(CLOSED),
 
 csocket::~csocket()
 {
+	close();
+}
+
+void csocket::close()
+{
     if ( m_socketState != csocket::CLOSED )
     {
 #ifdef WIN32
@@ -51,6 +56,7 @@ csocket::~csocket()
         ::close(m_socket);
 #endif
     }
+    m_socketState = csocket::CLOSED;
 }
 
 
@@ -208,7 +214,7 @@ int csocket::canRead( bool* readyToRead, float waitTime )
     }
 
     
-#ifdef WIN32
+#ifndef WIN32
     nfds = m_socket+1;
 #endif
 
