@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.6)
 
-set(CMAKE_TOOLCHAIN_FILE $ENV{CMAKE_TOOLCHAIN_FILE})
+if(DEFINED ENV{CMAKE_TOOLCHAIN_FILE})
+	set(CMAKE_TOOLCHAIN_FILE $ENV{CMAKE_TOOLCHAIN_FILE})
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
@@ -37,4 +39,7 @@ add_executable(
 	
 target_link_libraries(harmonyhueconnect ${LIBS})
 
-install(TARGETS harmonyhueconnect RUNTIME DESTINATION bin)
+set(SCP_INSTALL_DESTINATION pi@raspberrypi.feuerweg.vchrist.at:/home/pi)
+SET(CMAKE_INSTALL_PREFIX /home/voc/tmp/mytmp)
+
+install(TARGETS harmonyhueconnect DESTINATION bin)
