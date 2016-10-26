@@ -39,7 +39,6 @@ add_executable(
 	
 target_link_libraries(harmonyhueconnect ${LIBS})
 
-set(SCP_INSTALL_DESTINATION pi@raspberrypi.feuerweg.vchrist.at:/home/pi)
-SET(CMAKE_INSTALL_PREFIX /home/voc/tmp/mytmp)
-
 install(TARGETS harmonyhueconnect DESTINATION bin)
+
+add_subdirectory(harmonyhue)

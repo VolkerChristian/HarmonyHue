@@ -50,7 +50,7 @@ int main1(csocket* commandcsocket) {
                     parser.parse_chunk(input);
                 }
             } else {
-                write(commandcsocket->m_socket, "<iq type='get' id='2320426445' from='guest'>\
+                commandcsocket->write("<iq type='get' id='2320426445' from='guest'>\
 				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.ping'>\
 				</oa>\
 				</iq>", strlen("<iq type='get' id='2320426445' from='guest'>\

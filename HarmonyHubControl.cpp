@@ -440,338 +440,338 @@ int swapAuthorizationToken(csocket* authorizationcsocket, std::string& strAuthor
 }
 
 
-int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, std::string strCommand, std::string strCommandParameterPrimary, std::string strCommandParameterSecondary)
-{
-    if(commandcsocket== NULL || strAuthorizationToken.length() == 0)
-    {
-        errorString = "submitCommand : NULL csocket or empty authorization token provided";
-        return 1;
-    }
-
-    std::string lstrCommand = strCommand;
-    if(lstrCommand.length() == 0)
-    {
-        // No command provided, return query for the current activity
-        lstrCommand = "get_current_activity_id";
-        return 0;
-    }
-
-    std::string strData;
-
-    std::string sendData;
-
-    sendData = "<iq type=\"get\" id=\"";
-    sendData.append(CONNECTION_ID);
-    sendData.append("\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?");
-
-    // Issue the provided command
-    if(lstrCommand == "get_current_activity_id" || lstrCommand == "get_current_activity_id_raw")
-    {
-        sendData.append("getCurrentActivity\" /></iq>");
-    }
-    if(lstrCommand == "get_config_raw")
-    {
-        sendData.append("config\"></oa></iq>");
-    }
-    else if (lstrCommand == "start_activity")
-    {
-        sendData.append("startactivity\">activityId=");
-        sendData.append(strCommandParameterPrimary.c_str());
-        sendData.append(":timestamp=0</oa></iq>");
-    }
-    else if (lstrCommand == "issue_device_command")
-    {
-        sendData.append("holdAction\">action={\"type\"::\"IRCommand\",\"deviceId\"::\"");
-        sendData.append(strCommandParameterPrimary.c_str());
-        sendData.append("\",\"command\"::\"");
-        sendData.append(strCommandParameterSecondary.c_str());
-        sendData.append("\"}:status=press</oa></iq>");
-    }
-
-    commandcsocket->write(sendData.c_str(), sendData.length());
-
-    memset(databuffer, 0, 1000000);
-    commandcsocket->read(databuffer, 1000000, false);
-    strData = databuffer; /* <- Expect: strData  == <iq/> */
-
-    std::string iqTag = "<iq/>";
-    int pos = (int)strData.find(iqTag);
-
-    if(pos != 0)
-    {
-        errorString = "submitCommand: Invalid Harmony response: " + strData;
-        return 1;
-    }
-
-    bool bIsDataReadable = false;
-    commandcsocket->canRead(&bIsDataReadable, NULL, 0.6f);
-
-    if(bIsDataReadable == false && strData == "<iq/>")
-    {
-        bIsDataReadable = true;
-    }
-
-    if(strCommand != "issue_device_command")
-    {
-        while(bIsDataReadable)
-        {
-            memset(databuffer, 0, 1000000);
-            commandcsocket->read(databuffer, 1000000, false);
-            strData.append(databuffer);
-            commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
-        }
-    }
-
-    resultString = strData;
-
-    if(strCommand == "get_current_activity_id" || strCommand == "get_current_activity_id_raw")
-    {
-        int resultStartPos = resultString.find("result=");
-        int resultEndPos = resultString.find("]]>");
-        if(resultStartPos != std::string::npos && resultEndPos != std::string::npos)
-        {
-            resultString = resultString.substr(resultStartPos + 7, resultEndPos - resultStartPos - 7);
-            if(strCommand == "get_current_activity_id")
-            {
-                resultString.insert(0, "Current Activity ID is : ");
-            }
-        }
-    }
-    else if(strCommand == "get_config" || strCommand == "get_config_raw")
-    {
-        commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
-
-#ifndef WIN32
-        bIsDataReadable = true;
-#endif
-
-        while(bIsDataReadable)
-        {
-            memset(databuffer, 0, 1000000);
-            commandcsocket->read(databuffer, 1000000, false);
-            strData.append(databuffer);
-            commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
-        }
-
-
-        pos = strData.find("![CDATA[{");
-        if(pos != std::string::npos)
-        {
-            resultString = "Logitech Harmony Configuration : \n" + strData.substr(pos + 9);
-        }
-    }
-    else if (strCommand == "start_activity" || strCommand == "issue_device_command")
-    {
-        resultString = "";
-    }
-    return 0;
-}
-
-int parseAction(const std::string& strAction, std::vector<Action>& vecDeviceActions, const std::string& strDeviceID)
-{
-    Action a;
-    const std::string commandTag = "\\\"command\\\":\\\"";
-    int commandStart = strAction.find(commandTag);
-    int commandEnd = strAction.find("\\\",\\\"", commandStart);
-    a.m_strCommand = strAction.substr(commandStart + commandTag.length(), commandEnd - commandStart - commandTag.length());
-
-    const std::string deviceIdTag = "\\\"deviceId\\\":\\\"";
-    int deviceIDStart = strAction.find(deviceIdTag, commandEnd);
-
-    const std::string nameTag = "\\\"}\",\"name\":\"";
-    int deviceIDEnd = strAction.find(nameTag, deviceIDStart);
-
-    std::string commandDeviceID = strAction.substr(deviceIDStart + deviceIdTag.length(), deviceIDEnd - deviceIDStart - deviceIdTag.length());
-    if(commandDeviceID != strDeviceID)
-    {
-        return 1;
-    }
-
-    int nameStart = deviceIDEnd + nameTag.length();
-
-    const std::string labelTag = "\",\"label\":\"";
-    int nameEnd = strAction.find(labelTag, nameStart);
-
-    a.m_strName = strAction.substr(nameStart, nameEnd - nameStart);
-
-    int labelStart = nameEnd + labelTag.length();
-    int labelEnd = strAction.find("\"}", labelStart);
-
-    a.m_strLabel = strAction.substr(labelStart, labelEnd - labelStart);
-
-    vecDeviceActions.push_back(a);
-    return 0;
-}
-
-int parseFunction(const std::string& strFunction, std::vector<Function>& vecDeviceFunctions, const std::string& strDeviceID)
-{
-    Function f;
-    int functionNameEnd = strFunction.find("\",\"function\":[{");
-    if(functionNameEnd == std::string::npos)
-    {
-        return 1;
-    }
-
-    f.m_strName = strFunction.substr(0, functionNameEnd);
-
-    const std::string actionTag = "\"action\":\"";
-    int actionStart = strFunction.find(actionTag, functionNameEnd);
-
-    while(actionStart != std::string::npos)
-    {
-        const std::string labelTag = "\"label\":\"";
-        int actionEnd = strFunction.find(labelTag, actionStart);
-        if(actionEnd == std::string::npos)
-        {
-            return 1;
-        }
-        actionEnd = strFunction.find("\"}", actionEnd + labelTag.length());
-
-        std::string strAction = strFunction.substr(actionStart + actionTag.length(), actionEnd - actionStart - actionTag.length());
-        parseAction(strAction, f.m_vecActions, strDeviceID);
-
-        actionStart = strFunction.find(actionTag, actionEnd);
-    }
-
-    vecDeviceFunctions.push_back(f);
-
-    return 0;
-}
-
-int parseControlGroup(const std::string& strControlGroup, std::vector<Function>& vecDeviceFunctions, const std::string& strDeviceID)
-{
-    const std::string nameTag = "{\"name\":\"";
-    int funcStartPos = strControlGroup.find(nameTag);
-    int funcEndPos = strControlGroup.find("]}");
-    while(funcStartPos != std::string::npos)
-    {
-        std::string strFunction = strControlGroup.substr(funcStartPos + nameTag.length(), funcEndPos - funcStartPos - nameTag.length());
-        if(parseFunction(strFunction, vecDeviceFunctions, strDeviceID) != 0)
-        {
-            return 1;
-        }
-        funcStartPos = strControlGroup.find(nameTag, funcEndPos);
-        funcEndPos = strControlGroup.find("}]}", funcStartPos);
-    }
-
-    return 0;
-}
-
-int parseConfiguration(const std::string& strConfiguration, std::map< std::string, std::string >& mapActivities, std::vector< Device >& vecDevices)
-{
-    std::string activityTypeDisplayNameTag = "\",\"activityTypeDisplayName\":\"";
-    int activityTypeDisplayNameStartPos = strConfiguration.find(activityTypeDisplayNameTag);
-    while(activityTypeDisplayNameStartPos != std::string::npos)
-    {
-        int activityStart = strConfiguration.rfind("{", activityTypeDisplayNameStartPos);
-        if(activityStart != std::string::npos )
-        {
-            std::string activityString = strConfiguration.substr(activityStart+1, activityTypeDisplayNameStartPos - activityStart-1);
-
-            std::string labelTag = "\"label\":\"";
-            std::string idTag = "\",\"id\":\"";
-            int labelStartPos = activityString.find(labelTag);
-            int idStartPos = activityString.find(idTag, labelStartPos);
-
-            // Try to pick up the label
-            std::string strActivityLabel = activityString.substr(labelStartPos+9, idStartPos-labelStartPos-9);
-            idStartPos += idTag.length();
-
-            // Try to pick up the ID
-            std::string strActivityID = activityString.substr(idStartPos, activityString.length() - idStartPos);
-
-            mapActivities.insert(std::map< std::string, std::string>::value_type(strActivityID, strActivityLabel));
-        }
-        activityTypeDisplayNameStartPos = strConfiguration.find(activityTypeDisplayNameTag, activityTypeDisplayNameStartPos+activityTypeDisplayNameTag.length());
-    }
-
-    // Search for devices and commands
-    std::string deviceDisplayNameTag = "deviceTypeDisplayName";
-    int deviceTypeDisplayNamePos = strConfiguration.find(deviceDisplayNameTag);
-    while(deviceTypeDisplayNamePos != std::string::npos && deviceTypeDisplayNamePos != strConfiguration.length())
-    {
-        //std::string deviceString = strConfiguration.substr(deviceTypeDisplayNamePos);
-        int nextDeviceTypeDisplayNamePos = strConfiguration.find(deviceDisplayNameTag, deviceTypeDisplayNamePos + deviceDisplayNameTag.length());
-
-        if(nextDeviceTypeDisplayNamePos == std::string::npos)
-        {
-            nextDeviceTypeDisplayNamePos = strConfiguration.length();
-        }
-
-        Device d;
-
-        // Search for commands
-        const std::string controlGroupTag = ",\"controlGroup\":[";
-        const std::string controlPortTag = "],\"ControlPort\":";
-        int controlGroupStartPos = strConfiguration.find(controlGroupTag, deviceTypeDisplayNamePos);
-        int controlGroupEndPos = strConfiguration.find(controlPortTag, controlGroupStartPos + controlGroupTag.length());
-        int deviceStartPos = strConfiguration.rfind("{", deviceTypeDisplayNamePos);
-        int deviceEndPos = strConfiguration.find("}", controlGroupEndPos);
-
-        if(deviceStartPos != std::string::npos && deviceEndPos != std::string::npos)
-        {
-            // Try to pick up the ID
-            const std::string idTag = "\",\"id\":\"";
-            int idStartPos = strConfiguration.find(idTag, deviceStartPos);
-            if(idStartPos != std::string::npos && idStartPos < deviceEndPos)
-            {
-                int idEndPos = strConfiguration.find("\",\"", idStartPos + idTag.length());
-                d.m_strID = strConfiguration.substr(idStartPos+idTag.length(), idEndPos-idStartPos-idTag.length());
-            }
-            else
-            {
-                deviceTypeDisplayNamePos = nextDeviceTypeDisplayNamePos ;
-                continue;
-            }
-
-            // Definitely have a device
-
-            // Try to pick up the label
-            const std::string labelTag = "\"label\":\"";
-            int labelStartPos = strConfiguration.find(labelTag, deviceStartPos);
-            if(labelStartPos != std::string::npos && labelStartPos < deviceEndPos)
-            {
-                int labelEndPos = strConfiguration.find("\",\"", labelStartPos + labelTag.length());
-                d.m_strLabel = strConfiguration.substr(labelStartPos + labelTag.length(), labelEndPos-labelStartPos - labelTag.length());
-            }
-
-            // Try to pick up the type
-            std::string typeTag = ",\"type\":\"";
-            int typeStartPos = strConfiguration.find(typeTag, deviceStartPos);
-            if(typeStartPos != std::string::npos && typeStartPos < deviceEndPos)
-            {
-                int typeEndPos = strConfiguration.find("\",\"", typeStartPos + typeTag.length());
-                d.m_strType = strConfiguration.substr(typeStartPos + typeTag.length(), typeEndPos - typeStartPos - typeTag.length());
-            }
-
-            // Try to pick up the manufacturer
-            std::string manufacturerTag = "manufacturer\":\"";
-            int manufacturerStartPos = strConfiguration.find(manufacturerTag, deviceStartPos);
-            if(manufacturerStartPos != std::string::npos && manufacturerStartPos < deviceEndPos)
-            {
-                int manufacturerEndPos = strConfiguration.find("\",\"", manufacturerStartPos + manufacturerTag.length());
-                d.m_strManufacturer = strConfiguration.substr(manufacturerStartPos+15, manufacturerEndPos-manufacturerStartPos-manufacturerTag.length());
-            }
-
-            // Try to pick up the model
-            std::string modelTag = "model\":\"";
-            int modelStartPos = strConfiguration.find(modelTag, deviceStartPos);
-            if(modelStartPos != std::string::npos && modelStartPos < deviceEndPos)
-            {
-                int modelEndPos = strConfiguration.find("\",\"", modelStartPos + modelTag.length());
-                d.m_strModel = strConfiguration.substr(modelStartPos+modelTag.length(), modelEndPos-modelStartPos-modelTag.length());
-            }
-
-            // Parse Commands
-            std::string strControlGroup = strConfiguration.substr(controlGroupStartPos + controlGroupTag.length(), controlGroupEndPos - controlGroupStartPos - controlGroupTag.length());
-            parseControlGroup(strControlGroup, d.m_vecFunctions, d.m_strID);
-
-            vecDevices.push_back(d);
-        }
-        deviceTypeDisplayNamePos = nextDeviceTypeDisplayNamePos;
-    }
-    return 0;
-}
+// int submitCommand(csocket* commandcsocket, std::string& strAuthorizationToken, std::string strCommand, std::string strCommandParameterPrimary, std::string strCommandParameterSecondary)
+// {
+//     if(commandcsocket== NULL || strAuthorizationToken.length() == 0)
+//     {
+//         errorString = "submitCommand : NULL csocket or empty authorization token provided";
+//         return 1;
+//     }
+// 
+//     std::string lstrCommand = strCommand;
+//     if(lstrCommand.length() == 0)
+//     {
+//         // No command provided, return query for the current activity
+//         lstrCommand = "get_current_activity_id";
+//         return 0;
+//     }
+// 
+//     std::string strData;
+// 
+//     std::string sendData;
+// 
+//     sendData = "<iq type=\"get\" id=\"";
+//     sendData.append(CONNECTION_ID);
+//     sendData.append("\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.harmony/vnd.logitech.harmony.engine?");
+// 
+//     // Issue the provided command
+//     if(lstrCommand == "get_current_activity_id" || lstrCommand == "get_current_activity_id_raw")
+//     {
+//         sendData.append("getCurrentActivity\" /></iq>");
+//     }
+//     if(lstrCommand == "get_config_raw")
+//     {
+//         sendData.append("config\"></oa></iq>");
+//     }
+//     else if (lstrCommand == "start_activity")
+//     {
+//         sendData.append("startactivity\">activityId=");
+//         sendData.append(strCommandParameterPrimary.c_str());
+//         sendData.append(":timestamp=0</oa></iq>");
+//     }
+//     else if (lstrCommand == "issue_device_command")
+//     {
+//         sendData.append("holdAction\">action={\"type\"::\"IRCommand\",\"deviceId\"::\"");
+//         sendData.append(strCommandParameterPrimary.c_str());
+//         sendData.append("\",\"command\"::\"");
+//         sendData.append(strCommandParameterSecondary.c_str());
+//         sendData.append("\"}:status=press</oa></iq>");
+//     }
+// 
+//     commandcsocket->write(sendData.c_str(), sendData.length());
+// 
+//     memset(databuffer, 0, 1000000);
+//     commandcsocket->read(databuffer, 1000000, false);
+//     strData = databuffer; /* <- Expect: strData  == <iq/> */
+// 
+//     std::string iqTag = "<iq/>";
+//     int pos = (int)strData.find(iqTag);
+// 
+//     if(pos != 0)
+//     {
+//         errorString = "submitCommand: Invalid Harmony response: " + strData;
+//         return 1;
+//     }
+// 
+//     bool bIsDataReadable = false;
+//     commandcsocket->canRead(&bIsDataReadable, NULL, 0.6f);
+// 
+//     if(bIsDataReadable == false && strData == "<iq/>")
+//     {
+//         bIsDataReadable = true;
+//     }
+// 
+//     if(strCommand != "issue_device_command")
+//     {
+//         while(bIsDataReadable)
+//         {
+//             memset(databuffer, 0, 1000000);
+//             commandcsocket->read(databuffer, 1000000, false);
+//             strData.append(databuffer);
+//             commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
+//         }
+//     }
+// 
+//     resultString = strData;
+// 
+//     if(strCommand == "get_current_activity_id" || strCommand == "get_current_activity_id_raw")
+//     {
+//         int resultStartPos = resultString.find("result=");
+//         int resultEndPos = resultString.find("]]>");
+//         if(resultStartPos != std::string::npos && resultEndPos != std::string::npos)
+//         {
+//             resultString = resultString.substr(resultStartPos + 7, resultEndPos - resultStartPos - 7);
+//             if(strCommand == "get_current_activity_id")
+//             {
+//                 resultString.insert(0, "Current Activity ID is : ");
+//             }
+//         }
+//     }
+//     else if(strCommand == "get_config" || strCommand == "get_config_raw")
+//     {
+//         commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
+// 
+// #ifndef WIN32
+//         bIsDataReadable = true;
+// #endif
+// 
+//         while(bIsDataReadable)
+//         {
+//             memset(databuffer, 0, 1000000);
+//             commandcsocket->read(databuffer, 1000000, false);
+//             strData.append(databuffer);
+//             commandcsocket->canRead(&bIsDataReadable, NULL, 0.3f);
+//         }
+// 
+// 
+//         pos = strData.find("![CDATA[{");
+//         if(pos != std::string::npos)
+//         {
+//             resultString = "Logitech Harmony Configuration : \n" + strData.substr(pos + 9);
+//         }
+//     }
+//     else if (strCommand == "start_activity" || strCommand == "issue_device_command")
+//     {
+//         resultString = "";
+//     }
+//     return 0;
+// }
+// 
+// int parseAction(const std::string& strAction, std::vector<Action>& vecDeviceActions, const std::string& strDeviceID)
+// {
+//     Action a;
+//     const std::string commandTag = "\\\"command\\\":\\\"";
+//     int commandStart = strAction.find(commandTag);
+//     int commandEnd = strAction.find("\\\",\\\"", commandStart);
+//     a.m_strCommand = strAction.substr(commandStart + commandTag.length(), commandEnd - commandStart - commandTag.length());
+// 
+//     const std::string deviceIdTag = "\\\"deviceId\\\":\\\"";
+//     int deviceIDStart = strAction.find(deviceIdTag, commandEnd);
+// 
+//     const std::string nameTag = "\\\"}\",\"name\":\"";
+//     int deviceIDEnd = strAction.find(nameTag, deviceIDStart);
+// 
+//     std::string commandDeviceID = strAction.substr(deviceIDStart + deviceIdTag.length(), deviceIDEnd - deviceIDStart - deviceIdTag.length());
+//     if(commandDeviceID != strDeviceID)
+//     {
+//         return 1;
+//     }
+// 
+//     int nameStart = deviceIDEnd + nameTag.length();
+// 
+//     const std::string labelTag = "\",\"label\":\"";
+//     int nameEnd = strAction.find(labelTag, nameStart);
+// 
+//     a.m_strName = strAction.substr(nameStart, nameEnd - nameStart);
+// 
+//     int labelStart = nameEnd + labelTag.length();
+//     int labelEnd = strAction.find("\"}", labelStart);
+// 
+//     a.m_strLabel = strAction.substr(labelStart, labelEnd - labelStart);
+// 
+//     vecDeviceActions.push_back(a);
+//     return 0;
+// }
+// 
+// int parseFunction(const std::string& strFunction, std::vector<Function>& vecDeviceFunctions, const std::string& strDeviceID)
+// {
+//     Function f;
+//     int functionNameEnd = strFunction.find("\",\"function\":[{");
+//     if(functionNameEnd == std::string::npos)
+//     {
+//         return 1;
+//     }
+// 
+//     f.m_strName = strFunction.substr(0, functionNameEnd);
+// 
+//     const std::string actionTag = "\"action\":\"";
+//     int actionStart = strFunction.find(actionTag, functionNameEnd);
+// 
+//     while(actionStart != std::string::npos)
+//     {
+//         const std::string labelTag = "\"label\":\"";
+//         int actionEnd = strFunction.find(labelTag, actionStart);
+//         if(actionEnd == std::string::npos)
+//         {
+//             return 1;
+//         }
+//         actionEnd = strFunction.find("\"}", actionEnd + labelTag.length());
+// 
+//         std::string strAction = strFunction.substr(actionStart + actionTag.length(), actionEnd - actionStart - actionTag.length());
+//         parseAction(strAction, f.m_vecActions, strDeviceID);
+// 
+//         actionStart = strFunction.find(actionTag, actionEnd);
+//     }
+// 
+//     vecDeviceFunctions.push_back(f);
+// 
+//     return 0;
+// }
+// 
+// int parseControlGroup(const std::string& strControlGroup, std::vector<Function>& vecDeviceFunctions, const std::string& strDeviceID)
+// {
+//     const std::string nameTag = "{\"name\":\"";
+//     int funcStartPos = strControlGroup.find(nameTag);
+//     int funcEndPos = strControlGroup.find("]}");
+//     while(funcStartPos != std::string::npos)
+//     {
+//         std::string strFunction = strControlGroup.substr(funcStartPos + nameTag.length(), funcEndPos - funcStartPos - nameTag.length());
+//         if(parseFunction(strFunction, vecDeviceFunctions, strDeviceID) != 0)
+//         {
+//             return 1;
+//         }
+//         funcStartPos = strControlGroup.find(nameTag, funcEndPos);
+//         funcEndPos = strControlGroup.find("}]}", funcStartPos);
+//     }
+// 
+//     return 0;
+// }
+// 
+// int parseConfiguration(const std::string& strConfiguration, std::map< std::string, std::string >& mapActivities, std::vector< Device >& vecDevices)
+// {
+//     std::string activityTypeDisplayNameTag = "\",\"activityTypeDisplayName\":\"";
+//     int activityTypeDisplayNameStartPos = strConfiguration.find(activityTypeDisplayNameTag);
+//     while(activityTypeDisplayNameStartPos != std::string::npos)
+//     {
+//         int activityStart = strConfiguration.rfind("{", activityTypeDisplayNameStartPos);
+//         if(activityStart != std::string::npos )
+//         {
+//             std::string activityString = strConfiguration.substr(activityStart+1, activityTypeDisplayNameStartPos - activityStart-1);
+// 
+//             std::string labelTag = "\"label\":\"";
+//             std::string idTag = "\",\"id\":\"";
+//             int labelStartPos = activityString.find(labelTag);
+//             int idStartPos = activityString.find(idTag, labelStartPos);
+// 
+//             // Try to pick up the label
+//             std::string strActivityLabel = activityString.substr(labelStartPos+9, idStartPos-labelStartPos-9);
+//             idStartPos += idTag.length();
+// 
+//             // Try to pick up the ID
+//             std::string strActivityID = activityString.substr(idStartPos, activityString.length() - idStartPos);
+// 
+//             mapActivities.insert(std::map< std::string, std::string>::value_type(strActivityID, strActivityLabel));
+//         }
+//         activityTypeDisplayNameStartPos = strConfiguration.find(activityTypeDisplayNameTag, activityTypeDisplayNameStartPos+activityTypeDisplayNameTag.length());
+//     }
+// 
+//     // Search for devices and commands
+//     std::string deviceDisplayNameTag = "deviceTypeDisplayName";
+//     int deviceTypeDisplayNamePos = strConfiguration.find(deviceDisplayNameTag);
+//     while(deviceTypeDisplayNamePos != std::string::npos && deviceTypeDisplayNamePos != strConfiguration.length())
+//     {
+//         //std::string deviceString = strConfiguration.substr(deviceTypeDisplayNamePos);
+//         int nextDeviceTypeDisplayNamePos = strConfiguration.find(deviceDisplayNameTag, deviceTypeDisplayNamePos + deviceDisplayNameTag.length());
+// 
+//         if(nextDeviceTypeDisplayNamePos == std::string::npos)
+//         {
+//             nextDeviceTypeDisplayNamePos = strConfiguration.length();
+//         }
+// 
+//         Device d;
+// 
+//         // Search for commands
+//         const std::string controlGroupTag = ",\"controlGroup\":[";
+//         const std::string controlPortTag = "],\"ControlPort\":";
+//         int controlGroupStartPos = strConfiguration.find(controlGroupTag, deviceTypeDisplayNamePos);
+//         int controlGroupEndPos = strConfiguration.find(controlPortTag, controlGroupStartPos + controlGroupTag.length());
+//         int deviceStartPos = strConfiguration.rfind("{", deviceTypeDisplayNamePos);
+//         int deviceEndPos = strConfiguration.find("}", controlGroupEndPos);
+// 
+//         if(deviceStartPos != std::string::npos && deviceEndPos != std::string::npos)
+//         {
+//             // Try to pick up the ID
+//             const std::string idTag = "\",\"id\":\"";
+//             int idStartPos = strConfiguration.find(idTag, deviceStartPos);
+//             if(idStartPos != std::string::npos && idStartPos < deviceEndPos)
+//             {
+//                 int idEndPos = strConfiguration.find("\",\"", idStartPos + idTag.length());
+//                 d.m_strID = strConfiguration.substr(idStartPos+idTag.length(), idEndPos-idStartPos-idTag.length());
+//             }
+//             else
+//             {
+//                 deviceTypeDisplayNamePos = nextDeviceTypeDisplayNamePos ;
+//                 continue;
+//             }
+// 
+//             // Definitely have a device
+// 
+//             // Try to pick up the label
+//             const std::string labelTag = "\"label\":\"";
+//             int labelStartPos = strConfiguration.find(labelTag, deviceStartPos);
+//             if(labelStartPos != std::string::npos && labelStartPos < deviceEndPos)
+//             {
+//                 int labelEndPos = strConfiguration.find("\",\"", labelStartPos + labelTag.length());
+//                 d.m_strLabel = strConfiguration.substr(labelStartPos + labelTag.length(), labelEndPos-labelStartPos - labelTag.length());
+//             }
+// 
+//             // Try to pick up the type
+//             std::string typeTag = ",\"type\":\"";
+//             int typeStartPos = strConfiguration.find(typeTag, deviceStartPos);
+//             if(typeStartPos != std::string::npos && typeStartPos < deviceEndPos)
+//             {
+//                 int typeEndPos = strConfiguration.find("\",\"", typeStartPos + typeTag.length());
+//                 d.m_strType = strConfiguration.substr(typeStartPos + typeTag.length(), typeEndPos - typeStartPos - typeTag.length());
+//             }
+// 
+//             // Try to pick up the manufacturer
+//             std::string manufacturerTag = "manufacturer\":\"";
+//             int manufacturerStartPos = strConfiguration.find(manufacturerTag, deviceStartPos);
+//             if(manufacturerStartPos != std::string::npos && manufacturerStartPos < deviceEndPos)
+//             {
+//                 int manufacturerEndPos = strConfiguration.find("\",\"", manufacturerStartPos + manufacturerTag.length());
+//                 d.m_strManufacturer = strConfiguration.substr(manufacturerStartPos+15, manufacturerEndPos-manufacturerStartPos-manufacturerTag.length());
+//             }
+// 
+//             // Try to pick up the model
+//             std::string modelTag = "model\":\"";
+//             int modelStartPos = strConfiguration.find(modelTag, deviceStartPos);
+//             if(modelStartPos != std::string::npos && modelStartPos < deviceEndPos)
+//             {
+//                 int modelEndPos = strConfiguration.find("\",\"", modelStartPos + modelTag.length());
+//                 d.m_strModel = strConfiguration.substr(modelStartPos+modelTag.length(), modelEndPos-modelStartPos-modelTag.length());
+//             }
+// 
+//             // Parse Commands
+//             std::string strControlGroup = strConfiguration.substr(controlGroupStartPos + controlGroupTag.length(), controlGroupEndPos - controlGroupStartPos - controlGroupTag.length());
+//             parseControlGroup(strControlGroup, d.m_vecFunctions, d.m_strID);
+// 
+//             vecDevices.push_back(d);
+//         }
+//         deviceTypeDisplayNamePos = nextDeviceTypeDisplayNamePos;
+//     }
+//     return 0;
+// }
 
 
 const std::string ReadAuthorizationTokenFile()
@@ -1000,300 +1000,163 @@ int main(int argc, char * argv[])
 
 
         main1(&commandcsocket);
-        readXml(&commandcsocket);
-        /*
-        memset(databuffer, 0, 1000000);
-        if (commandcsocket.read(databuffer, 1000000, false) != 0) {
-        	std::cout << databuffer << std::endl;
-        } else {
-        	commandcsocket.close();
-        }
-
-        continue;
-        */
-
-        if(submitCommand(&commandcsocket, strAuthorizationToken, lstrCommand, strCommandParameterPrimary, strCommandParameterSecondary) == 1)
-        {
-            commandcsocket.close();
-//            log("HARMONY COMMAND SUBMISSION     : FAILURE", false);
-            logwarn("%s", "Harmony command submission: " + errorString);
-//            fprintf(stderr, "ERROR : %s\n", errorString.c_str());
-            continue;
-        }
-
-//        log("HARMONY COMMAND SUBMISSION     : SUCCESS", bQuietMode);
-
-        if(lstrCommand == "get_config_raw")
-        {
-            std::map< std::string, std::string> mapActivities;
-            std::vector< Device > vecDevices;
-            if(parseConfiguration(resultString, mapActivities, vecDevices) == 1)
-            {
-                logwarn("%s", "Parse activities and devices: " + errorString);
-//                log("PARSE ACTIVITIES AND DEVICES   : FAILURE", false);
-//                printf("ERROR : %s\n", errorString.c_str());
-                continue;
-            }
-
-            if(strCommand == "list_activities" || strCommand == "list_activities_raw" )
-            {
-                resultString = "";
-
-                if(strCommand == "list_activities")
-                {
-                    resultString = "Activities Available via Harmony : \n\n";
-                }
-
-                std::map< std::string, std::string>::iterator it = mapActivities.begin();
-                std::map< std::string, std::string>::iterator ite = mapActivities.end();
-                for(; it != ite; ++it)
-                {
-                    resultString.append(it->first);
-                    resultString.append(" - ");
-                    resultString.append(it->second);
-                    resultString.append("\n");
-
-                }
-            }
-
-            if( strCommand == "list_devices" || strCommand == "list_devices_raw" )
-            {
-                resultString = "";
-
-                if( strCommand == "list_devices" )
-                {
-                    resultString = "Devices Controllable via Harmony : \n\n";
-                }
-
-                std::vector< Device >::iterator it = vecDevices.begin();
-                std::vector< Device >::iterator ite = vecDevices.end();
-                for(; it != ite; ++it)
-                {
-                    resultString.append(it->m_strID );
-                    resultString.append(" - ");
-                    resultString.append(it->m_strLabel );
-                    resultString.append("\n");
-
-                }
-            }
-
-            if(strCommand == "list_commands" || strCommand == "list_commands_raw" )
-            {
-                resultString = "";
-
-                if(strCommand == "list_commands")
-                {
-                    resultString = "Devices Controllable via Harmony with Commands : \n\n";
-                }
-                std::vector< Device >::iterator it = vecDevices.begin();
-                std::vector< Device >::iterator ite = vecDevices.end();
-                for(; it != ite; ++it)
-                {
-                    resultString.append(it->toString());
-                    resultString.append("\n\n\n");
-                }
-            }
-
-            if(strCommand == "list_device_commands" || strCommand == "list_device_commands_raw")
-            {
-                resultString = "";
-
-                if(strCommand == "list_device_commands")
-                {
-                    resultString = "Harmony Commands for Device: \n\n";
-                }
-
-                std::vector< Device >::iterator it = vecDevices.begin();
-                std::vector< Device >::iterator ite = vecDevices.end();
-                for(; it != ite; ++it)
-                {
-                    if(it->m_strID == strCommandParameterPrimary)
-                    {
-                        if(strCommandParameterSecondary.length())
-                        {
-                            if(strCommandParameterSecondary == it->m_strID)
-                            {
-                                resultString.append(it->toString());
-                                resultString.append("\n\n\n");
-                            }
-                        }
-                        else
-                        {
-                            resultString.append(it->toString());
-                            resultString.append("\n\n\n");
-                        }
-
-
-                        break;
-                    }
-                }
-            }
-//            log("PARSE ACTIVITIES AND DEVICES   : SUCCESS", bQuietMode);
-        }
-
-
-        if (resultString == "-1") {
-            printf("Switched off\n");
-            if (previousState != 0) {
-                printf("Toggle Hue to <MediaOff>\n");
-                if (system("/home/pi/harmonyhueconnect/mediaoff") == 0) {
-                    previousState = 0;
-                    loginfo("%s", "Set HUE to media equipement switched OFF: success");
-                } else {
-                    logwarn("%s", "Set HUE to media equipement switched OFF: failure");
-                }
-            }
-        } else {
-            printf("Switched on\n");
-            if (previousState != 1) {
-                printf("Toggle Hue to <MediaOn>\n");
-                if (system("/home/pi/harmonyhueconnect/mediaon") == 0) {
-                    previousState = 1;
-                    loginfo("%s", "Set HUE to media equipement switched ON: success");
-                } else {
-                    logwarn("%s", "Set HUE to media equipement switched ON: failure");
-                }
-            }
-        }
-
-        sleep(2);
-    }
+//         /*
+//         memset(databuffer, 0, 1000000);
+//         if (commandcsocket.read(databuffer, 1000000, false) != 0) {
+//         	std::cout << databuffer << std::endl;
+//         } else {
+//         	commandcsocket.close();
+//         }
+// 
+//         continue;
+//         */
+// 
+//         if(submitCommand(&commandcsocket, strAuthorizationToken, lstrCommand, strCommandParameterPrimary, strCommandParameterSecondary) == 1)
+//         {
+//             commandcsocket.close();
+// //            log("HARMONY COMMAND SUBMISSION     : FAILURE", false);
+//             logwarn("%s", "Harmony command submission: " + errorString);
+// //            fprintf(stderr, "ERROR : %s\n", errorString.c_str());
+//             continue;
+//         }
+// 
+// //        log("HARMONY COMMAND SUBMISSION     : SUCCESS", bQuietMode);
+// 
+//         if(lstrCommand == "get_config_raw")
+//         {
+//             std::map< std::string, std::string> mapActivities;
+//             std::vector< Device > vecDevices;
+//             if(parseConfiguration(resultString, mapActivities, vecDevices) == 1)
+//             {
+//                 logwarn("%s", "Parse activities and devices: " + errorString);
+// //                log("PARSE ACTIVITIES AND DEVICES   : FAILURE", false);
+// //                printf("ERROR : %s\n", errorString.c_str());
+//                 continue;
+//             }
+// 
+//             if(strCommand == "list_activities" || strCommand == "list_activities_raw" )
+//             {
+//                 resultString = "";
+// 
+//                 if(strCommand == "list_activities")
+//                 {
+//                     resultString = "Activities Available via Harmony : \n\n";
+//                 }
+// 
+//                 std::map< std::string, std::string>::iterator it = mapActivities.begin();
+//                 std::map< std::string, std::string>::iterator ite = mapActivities.end();
+//                 for(; it != ite; ++it)
+//                 {
+//                     resultString.append(it->first);
+//                     resultString.append(" - ");
+//                     resultString.append(it->second);
+//                     resultString.append("\n");
+// 
+//                 }
+//             }
+// 
+//             if( strCommand == "list_devices" || strCommand == "list_devices_raw" )
+//             {
+//                 resultString = "";
+// 
+//                 if( strCommand == "list_devices" )
+//                 {
+//                     resultString = "Devices Controllable via Harmony : \n\n";
+//                 }
+// 
+//                 std::vector< Device >::iterator it = vecDevices.begin();
+//                 std::vector< Device >::iterator ite = vecDevices.end();
+//                 for(; it != ite; ++it)
+//                 {
+//                     resultString.append(it->m_strID );
+//                     resultString.append(" - ");
+//                     resultString.append(it->m_strLabel );
+//                     resultString.append("\n");
+// 
+//                 }
+//             }
+// 
+//             if(strCommand == "list_commands" || strCommand == "list_commands_raw" )
+//             {
+//                 resultString = "";
+// 
+//                 if(strCommand == "list_commands")
+//                 {
+//                     resultString = "Devices Controllable via Harmony with Commands : \n\n";
+//                 }
+//                 std::vector< Device >::iterator it = vecDevices.begin();
+//                 std::vector< Device >::iterator ite = vecDevices.end();
+//                 for(; it != ite; ++it)
+//                 {
+//                     resultString.append(it->toString());
+//                     resultString.append("\n\n\n");
+//                 }
+//             }
+// 
+//             if(strCommand == "list_device_commands" || strCommand == "list_device_commands_raw")
+//             {
+//                 resultString = "";
+// 
+//                 if(strCommand == "list_device_commands")
+//                 {
+//                     resultString = "Harmony Commands for Device: \n\n";
+//                 }
+// 
+//                 std::vector< Device >::iterator it = vecDevices.begin();
+//                 std::vector< Device >::iterator ite = vecDevices.end();
+//                 for(; it != ite; ++it)
+//                 {
+//                     if(it->m_strID == strCommandParameterPrimary)
+//                     {
+//                         if(strCommandParameterSecondary.length())
+//                         {
+//                             if(strCommandParameterSecondary == it->m_strID)
+//                             {
+//                                 resultString.append(it->toString());
+//                                 resultString.append("\n\n\n");
+//                             }
+//                         }
+//                         else
+//                         {
+//                             resultString.append(it->toString());
+//                             resultString.append("\n\n\n");
+//                         }
+// 
+// 
+//                         break;
+//                     }
+//                 }
+//             }
+// //            log("PARSE ACTIVITIES AND DEVICES   : SUCCESS", bQuietMode);
+//         }
+// 
+// 
+//         if (resultString == "-1") {
+//             printf("Switched off\n");
+//             if (previousState != 0) {
+//                 printf("Toggle Hue to <MediaOff>\n");
+//                 if (system("/home/pi/harmonyhueconnect/mediaoff") == 0) {
+//                     previousState = 0;
+//                     loginfo("%s", "Set HUE to media equipement switched OFF: success");
+//                 } else {
+//                     logwarn("%s", "Set HUE to media equipement switched OFF: failure");
+//                 }
+//             }
+//         } else {
+//             printf("Switched on\n");
+//             if (previousState != 1) {
+//                 printf("Toggle Hue to <MediaOn>\n");
+//                 if (system("/home/pi/harmonyhueconnect/mediaon") == 0) {
+//                     previousState = 1;
+//                     loginfo("%s", "Set HUE to media equipement switched ON: success");
+//                 } else {
+//                     logwarn("%s", "Set HUE to media equipement switched ON: failure");
+//                 }
+//             }
+//         }
+// 
+//         sleep(2);
+	}
 
     return 0;
-}
-
-#include "tinyxml2.h"
-
-using namespace tinyxml2;
-
-
-ssize_t readLine(int fd, char *vptr, size_t maxlen)
-{
-    ssize_t n, rc;
-    char    c, *ptr;
-	char    s;
-
-    ptr = vptr;
-    for (n = 1; n < maxlen; n++) {
-again:
-        if ( (rc = read(fd, &c, 1)) == 1) {
-            *ptr++ = c;
-            if (c == '\n')
-                break;          /* newline is stored, like fgets() */
-        } else if (rc == 0) {
-            *ptr = 0;
-            return (n - 1);     /* EOF, n - 1 bytes were read */
-        } else {
-            if (errno == EINTR)
-                goto again;
-            return (-1);        /* error, errno set by read() */
-        }
-        
-        // State machine to detect end of <iq> element
-        // Stop reading of date when eighter an empty <iq/> 
-        // or a closing </iq> is detected.
-        if (c == 'i') s = c;
-		else if (s == 'i') {
-			if (c == 'q') s = c;
-			else s = 0;
-		} else if (s == 'q') {
-			if (c == '>') break;
-			if (c == '/') s = c;
-			else s = 0;
-		} else if (s == '/') {
-			if (c == '>') break;
-			else s = 0;
-		}
-    }
-
-    *ptr = 0;                   /* null terminate like fgets() */
-    return (n);
-}
-
-
-void readXml(csocket* commandcsocket) {
-    XMLDocument doc;
-    bool canRead;
-
-    while(1) {
-        if (commandcsocket->canRead(&canRead, NULL, 3) == FAILURE) {
-            exit(1);
-        }
-
-        if (canRead) {
-            memset(databuffer, 0, 1000000);
-            if (readLine(commandcsocket->m_socket, databuffer, 1000000) == 0) {
-                exit(1);
-            }
-
-            std::string strData = databuffer;
-
-            if(strData.find("<iq") != 0) {
-                doc.Parse(databuffer);
-
-                XMLElement* messageElementCL = doc.FirstChildElement("message");
-
-                int contentLength = 0;
-                messageElementCL->QueryIntAttribute( "content-length", &contentLength );
-
-                if (contentLength != 0) {
-                    memset(databuffer, 0, 1000000);
-                    if (commandcsocket->read(databuffer, contentLength, true) == 0) {
-                        exit(1);
-                    }
-
-                    doc.Parse(databuffer);
-
-                    const XMLElement* message = doc.FirstChildElement("message");
-                    const XMLAttribute* mattribute = message->FindAttribute("from");
-
-//                    std::cout << "From: " << mattribute->Value() << ", ";
-
-                    if (strcmp(mattribute->Value(), "HarmonyOne_Pop@qa1.com") == 0) {
-
-                        const XMLElement* event = message->FirstChildElement(); //"event"
-                        const XMLAttribute* eattribute = event->FindAttribute("type");
-
-//						std::cout << "Type: " << eattribute->Value() << std::endl;
-
-                        if (strcmp(eattribute->Value(), "connect.stateDigest?notify") == 0) {
-                            const XMLNode* notify = event->FirstChild();
-
-//                            std::cout << "Notify: " << notify->Value() << std::endl;
-							std::string value(notify->Value());
-							int pos = value.find("\"activityStatus\"");
-							
-							int posNum = value.find(":", pos);
-							int posCol = value.find(",", pos);
-							
-							std::cout << "ActivityStatus: >" << value.substr(posNum + 1, posCol - posNum - 1) << "<" << std::endl;
-
-                        } else if (strcmp(eattribute->Value(), "harmony.engine?startActivityFinished") == 0) {
-                            const XMLNode* activityFinished = event->FirstChild();
-
-//                            std::cout << "StartActivityFinished: " << activityFinished->Value() << std::endl;
-                        }
-                    }
-                }
-            }
-        } else {
-//            std::cout << "Sending Hardbeat" << std::endl;
-			/*
-            write(commandcsocket->m_socket, "<iq type='get' id='2320426445' from='guest'>\
-				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.pingvnd.logitech.ping'>\
-				</oa>\
-				</iq>", strlen("<iq type='get' id='2320426445' from='guest'>\
-				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.pingvnd.logitech.ping'>\
-				</oa>\
-				</iq>"));
-			*/
-			write(commandcsocket->m_socket, "<iq type='get' id='2320426445' from='guest'>\
-				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.ping'>\
-				</oa>\
-				</iq>", strlen("<iq type='get' id='2320426445' from='guest'>\
-				<oa xmlns='connect.logitech.com' mime='vnd.logitech.connect/vnd.logitech.ping'>\
-				</oa>\
-				</iq>"));
-        }
-    }
 }

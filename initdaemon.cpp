@@ -9,22 +9,6 @@
 
 #include "initdaemon.h"
 
-/*
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd. h.>
-#include <syslog.h>
-int main(int argc, char **argv) {
-   openlog( "logging",
-            LOG_PID | LOG_CONS | LOG_NDELAY, LOG_LOCAL0 );
-
-   syslog(LOG_NOTICE, "Hallo Welt mit syslog\n");
-
-   closelog();
-   return EXIT_SUCCESS;
-}
-*/
-
 static sighandler_t 
 handle_signal (int sig_nr, sighandler_t signalhandler) {
    struct sigaction neu_sig, alt_sig;

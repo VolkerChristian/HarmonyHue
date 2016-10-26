@@ -42,13 +42,12 @@ public:
 
 
 
+private:
 #ifdef WIN32
     SOCKET              m_socket;
 #else
     int                 m_socket;
 #endif
-
-private:
     struct sockaddr_in  m_localSocketAddr;
     struct sockaddr_in  m_remoteSocketAddr;
 
