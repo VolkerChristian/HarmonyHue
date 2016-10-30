@@ -6,10 +6,11 @@ add_executable (
 	harmonyhue
 	main.cpp
 	logger.cpp logger.h
-	harmony.cpp harmony.h
 	csocket.cpp csocket.h
 	base64.cpp base64.h
 	curl.cpp curl.h
+	hparser.cpp hparser.h hprinter.cpp 
+	hstates.cpp hstates.h
 )
 
 target_link_libraries(harmonyhue ${LIBS})

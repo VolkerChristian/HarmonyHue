@@ -10,6 +10,10 @@
 #include "harmony.h"
 #include "logger.h"
 
+#include "hparser.h"
+#include "hstates.h"
+
+
 static sighandler_t handle_signal (int sig_nr, sighandler_t signalhandler) {
     struct sigaction neu_sig, alt_sig;
     neu_sig.sa_handler = signalhandler;
@@ -25,21 +29,23 @@ static void daemonize(const char* logName) {
     pid_t pid;
     /* Elternprozess beenden, somit haben wir einen Waisen */
     /* dessen sich jetzt vorerst init annimmt              */
-    if ((pid = fork ()) != 0)
+    if ((pid = fork ()) != 0) {
         exit (EXIT_FAILURE);
+    }
     /* Kindprozess wird zum Sessionführer. Misslingt */
     /* dies, kann der Fehler daran liegen, dass der     */
     /* Prozess bereits Sessionführer ist               */
     if (setsid() < 0) {
-        Logger::error << " kann nicht Sessionführer werden!";
+        LogFatal << " kann nicht Sessionführer werden!";
         exit (EXIT_FAILURE);
     }
     /* Signal SIGHUP ignorieren */
     handle_signal (SIGHUP, SIG_IGN);
     /* Oder einfach: signal(SIGHUP, SIG_IGN) ... */
     /* Das Kind terminieren */
-    if ((pid = fork ()) != 0)
+    if ((pid = fork ()) != 0) {
         exit (EXIT_FAILURE);
+    }
     /* Gründe für das Arbeitsverzeichnis:
      * + core-Datei wird im aktuellen Arbeitsverzeichnis
      *   hinterlegt.
@@ -58,12 +64,17 @@ static void daemonize(const char* logName) {
 
 int main(int argc, char* argv[]) {
 	Logger::setToInfo();
-	Logger::info << "LogiHue - Startup";
-//    daemonize("logihue");
-	Logger::setToWarn();
-    Logger::warn << "Daemonized: Harmony-Hue";
+	LogInfo << "LogiHue - Startup";
+    daemonize("logihue");
+//	Logger::setToWarn();
+    
+    LogWarn << "Daemonized: Harmony-Hue";
 	
-	
+    
+    
+    
+    
+    
 	std::string strHarmonyIPAddress = "harmonyhub.feuerweg.vchrist.at";
 	int harmonyPortNumber = 5222;
 	
@@ -77,10 +88,97 @@ int main(int argc, char* argv[]) {
 	
 	std::string response;
 	
+    LogInfo << "Querry Logitech for AuthentificationToken";
 	EasyCurl::instance()->post(logitechUrl, content, header, response);
 	
-	std::cout << "Response: " << response << std::endl;
+	LogInfo << "Response from Logitech: " << response;
 	
+    
+    
+    
+    
+    
+	csocket harmonyCommunicationcsocket;
+	harmonyCommunicationcsocket.connect(strHarmonyIPAddress.c_str(), harmonyPortNumber);
+    
+    
+    HARMONY::HParser* p = new HARMONY::HParser(&harmonyCommunicationcsocket);
+    
+    HARMONY::HWriter* writer = p->getWriter("<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>");
+    
+    HARMONY::DocumentState* ds = new HARMONY::DocumentState(writer);
+    
+    HARMONY::ConnectState* cs = new HARMONY::ConnectState();
+    
+    writer = p->getWriter("</stream:stream>");
+    
+    HARMONY::ConnectError* ce = new HARMONY::ConnectError(writer);
+    
+    writer = p->getWriter("<auth xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\" mechanism=\"PLAIN\">Z3Vlc3RnYXRvcmFkZS4=</auth>");
+    HARMONY::StreamFeaturesState* sfs = new HARMONY::StreamFeaturesState(writer);
+    
+    HARMONY::MechanismsState* mss = new HARMONY::MechanismsState();
+    
+    HARMONY::MechanismState* ms = new HARMONY::MechanismState();
+    
+    writer = p->getWriter("<iq type=\"get\" id=\"12345678-1234-5678-1234-123456789012-1\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.pair\">token=n/LCkMcFkXZVc5UhbjT6+1xdX0/2fhC3Kr17x2SrhDRX+x+9dqcjLQZz/F3vkm7En/LCkMcFkXZVc5UhbjT6+1xdX0/2fhC3Kr17x2SrhDRX+x+9dqcjLQZz/F3vkm7E:name=foo#iOS6.0.1#iPhone</oa></iq>");
+    
+    HARMONY::SuccessState* ss = new HARMONY::SuccessState(writer);
+    
+    writer = p->getWriter("</stream:stream>");
+    
+    HARMONY::IqState* iq = new HARMONY::IqState(); //writer);
+    
+    HARMONY::OaState* oa = new HARMONY::OaState();
+    
+    ds->addHsState(cs);
+    
+    cs->addHsState(sfs);
+    
+    sfs->addHsState(mss);
+    
+    mss->addHsState(ms);
+    
+    cs->addHsState(ss);
+    
+    cs->addHsState(iq);
+    
+    iq->addHsState(oa);
+    
+    HARMONY::MessageState* message = new HARMONY::MessageState();
+    
+    HARMONY::EventState* event = new HARMONY::EventState();
+    
+    message->addHsState(event);
+    
+    cs->addHsState(message);
+    
+    p->getHContext()->setInitialHsState(ds);
+    
+    p->hParse();
+    
+    
+    /*
+    harmonyCommunicationcsocket.close();
+	harmonyCommunicationcsocket.connect(strHarmonyIPAddress.c_str(), harmonyPortNumber);
+    p->getHContext()->setInitialHsState(ds);
+    
+    p->hParse();
+    */
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+/*    
 	csocket harmonyCommunicationcsocket;
 	harmonyCommunicationcsocket.connect(strHarmonyIPAddress.c_str(), harmonyPortNumber);
 	
@@ -116,6 +214,6 @@ int main(int argc, char* argv[]) {
 	HarmonyParserAdapter* adapter = new HarmonyParserAdapter();
 	if (!parser2.startParse(adapter) != HarmonyParser::State::next) {
 	}
-	
+*/
     return EXIT_SUCCESS;
 }
