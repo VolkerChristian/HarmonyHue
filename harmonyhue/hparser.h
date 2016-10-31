@@ -9,9 +9,12 @@
 #include <libxml++/libxml++.h>
 
 #include "base64.h"
+#include "config.h"
 #include "csocket.h"
 #include "logger.h"
 
+
+#define HARMONYPORT 5222
 
 namespace HARMONY {
 
@@ -151,16 +154,15 @@ private:
 
 class HParser : public xmlpp::SaxParser {
 public:
-    HParser(csocket* cSocket) : xmlpp::SaxParser(), cSocket(cSocket), hContext(new HContext()) {
-        std::locale::global(std::locale(""));
-        set_substitute_entities(true);
-		setSocket(cSocket);
-    }
-
-    void setSocket(csocket* cSocket) {
-        this->cSocket = cSocket;
-    }
-
+    HParser() : xmlpp::SaxParser(), cSocket(new csocket()), hContext(new HContext()) {
+		std::locale::global(std::locale(""));
+		set_substitute_entities(true);
+	}
+	
+	int connect() {
+		return cSocket->connect(Config::getEntry("HarmonyHub").c_str(), HARMONYPORT);
+	}
+	
     ~HParser() override {
         delete hContext;
     }

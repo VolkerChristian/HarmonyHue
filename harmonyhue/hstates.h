@@ -2,7 +2,7 @@
 #include "csocket.h"
 
 namespace HARMONY {
-
+	
 class DocumentState : public HStateAdapter {
 public:
     DocumentState(HWriter* writer) : HStateAdapter("Document", writer) {}
@@ -14,11 +14,11 @@ public:
 
 protected:
     ERROR on_start_element(const Glib::ustring& name,
-                                          const xmlpp::SaxParser::AttributeList& attributes) {
+						   const xmlpp::SaxParser::AttributeList& attributes) override {
         return ERROR::E_SUCCESS;
     }
 
-    ERROR on_end_element(const Glib::ustring& name) {
+    ERROR on_end_element(const Glib::ustring& name) override {
         return ERROR::E_SUCCESS;
     }
 };
@@ -54,9 +54,18 @@ public:
     IqState(HWriter* writer = 0) : HStateAdapter("iq", writer) {}
 };
 
-class OaState : public HStateAdapter {
+class OaSwapTokenState : public HStateAdapter {
 public:
-    OaState() : HStateAdapter("oa") {}
+    OaSwapTokenState() : HStateAdapter("oa") {}
+    
+protected:
+    ERROR on_cdata_block (const Glib::ustring& text) override;
+    ERROR on_start_element(const Glib::ustring& name,
+                           const xmlpp::SaxParser::AttributeList& attributes) override;	
+	
+private:
+	bool isPing;
+	bool isPair;
 };
 
 class MessageState : public HStateAdapter {

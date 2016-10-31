@@ -11,6 +11,7 @@ add_executable (
 	curl.cpp curl.h
 	hparser.cpp hparser.h hprinter.cpp 
 	hstates.cpp hstates.h
+	config.cpp config.h
 )
 
 target_link_libraries(harmonyhue ${LIBS})

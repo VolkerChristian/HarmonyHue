@@ -1,10 +1,12 @@
+#include <algorithm>
 #include <cstdlib>
+#include <jansson.h>
 #include <list>
-
 #include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "csocket.h"
 #include "curl.h"
 #include "harmony.h"
@@ -13,6 +15,8 @@
 #include "hparser.h"
 #include "hstates.h"
 
+#define HARMONYPORT 5222
+#define CONNECTION_ID "12345678-1234-5678-1234-123456789012-1"
 
 static sighandler_t handle_signal (int sig_nr, sighandler_t signalhandler) {
     struct sigaction neu_sig, alt_sig;
@@ -62,24 +66,12 @@ static void daemonize(const char* logName) {
 	Logger::daemonized();
 }
 
-int main(int argc, char* argv[]) {
-	Logger::setToInfo();
-	LogInfo << "LogiHue - Startup";
-    daemonize("logihue");
-//	Logger::setToWarn();
-    
-    LogWarn << "Daemonized: Harmony-Hue";
-	
-    
-    
-    
-    
-    
-	std::string strHarmonyIPAddress = "harmonyhub.feuerweg.vchrist.at";
-	int harmonyPortNumber = 5222;
+
+int requestAuthToken() {
+    LogInfo << "Querry Logitech for AuthentificationToken";
 	
 	std::string logitechUrl("http://svcs.myharmony.com/CompositeSecurityServices/Security.svc/json/GetUserAuthToken");
-	std::string content("{\"email\":\"volker.christian@liwest.at\",\"password\":\"pentium5\"}");
+	std::string content("{\"email\":\"" + Config::getEntry("HarmonyEmail") + "\",\"password\":\"" + Config::getEntry("HarmonyPassword") + "\"}");
 
 	std::list<std::string> header;
 	header.push_back("Accept-Encoding: identity");
@@ -87,22 +79,69 @@ int main(int argc, char* argv[]) {
 	header.push_back("Content-Length: " + std::to_string(content.length()));
 	
 	std::string response;
-	
-    LogInfo << "Querry Logitech for AuthentificationToken";
 	EasyCurl::instance()->post(logitechUrl, content, header, response);
-	
 	LogInfo << "Response from Logitech: " << response;
 	
+    json_t *root;
+    json_error_t error;
+	
+    root = json_loads(response.c_str(), 0, &error);
+	if (root && json_is_object(root)) {
+		json_t* userAuthTokenResult = json_object_get(root, "GetUserAuthTokenResult");
+		if (json_is_object(userAuthTokenResult)) {
+			json_t* userAuthToken = json_object_get(userAuthTokenResult, "UserAuthToken");
+			if (json_is_string(userAuthToken)) {
+				std::string authToken = json_string_value(userAuthToken);
+				authToken.erase(std::remove(authToken.begin(), authToken.end(), '\\'), authToken.end());
+				Config::setEntry("HarmonyAuthToken", authToken);
+				LogInfo << "AuthorizationToken = " << authToken;
+			}
+		}
+	}
+	
+	return 0;
+}
+
+
+int main(int argc, char* argv[]) {
+	
+	Logger::setToInfo();
+	LogInfo << "LogiHue - Startup";
+	
+	Config::init("config");
+	
+	Config::printConfig();
+	
+//	Config::close();
+	
+//	exit(0);
+	
+	
+    daemonize("logihue");
+//	Logger::setToWarn();
     
+    LogWarn << "Daemonized: Harmony-Hue";
+	
+    
+    requestAuthToken();
+    
+	
+
+	
+//    exit(0);
     
     
     
     
 	csocket harmonyCommunicationcsocket;
-	harmonyCommunicationcsocket.connect(strHarmonyIPAddress.c_str(), harmonyPortNumber);
+//	harmonyCommunicationcsocket.connect(strHarmonyIPAddress.c_str(), harmonyPortNumber);
+	harmonyCommunicationcsocket.connect(Config::getEntry("HarmonyHub").c_str(), HARMONYPORT);
     
     
-    HARMONY::HParser* p = new HARMONY::HParser(&harmonyCommunicationcsocket);
+//    HARMONY::HParser* p = new HARMONY::HParser(&harmonyCommunicationcsocket);
+	
+	HARMONY::HParser* p = new HARMONY::HParser();
+	p->connect();
     
     HARMONY::HWriter* writer = p->getWriter("<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>");
     
@@ -114,22 +153,32 @@ int main(int argc, char* argv[]) {
     
     HARMONY::ConnectError* ce = new HARMONY::ConnectError(writer);
     
-    writer = p->getWriter("<auth xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\" mechanism=\"PLAIN\">Z3Vlc3RnYXRvcmFkZS4=</auth>");
+	
+	
+	std::string data = "<auth xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\" mechanism=\"PLAIN\">";
+    std::string tmp = "\0";
+    tmp.append("guest");
+    tmp.append("\0");
+    tmp.append("gatorade.");
+    data.append(base64_encode(tmp.c_str(), tmp.length()));
+    data.append("</auth>");
+	writer = p->getWriter(data);
+	
     HARMONY::StreamFeaturesState* sfs = new HARMONY::StreamFeaturesState(writer);
     
     HARMONY::MechanismsState* mss = new HARMONY::MechanismsState();
     
     HARMONY::MechanismState* ms = new HARMONY::MechanismState();
     
-    writer = p->getWriter("<iq type=\"get\" id=\"12345678-1234-5678-1234-123456789012-1\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.pair\">token=n/LCkMcFkXZVc5UhbjT6+1xdX0/2fhC3Kr17x2SrhDRX+x+9dqcjLQZz/F3vkm7En/LCkMcFkXZVc5UhbjT6+1xdX0/2fhC3Kr17x2SrhDRX+x+9dqcjLQZz/F3vkm7E:name=foo#iOS6.0.1#iPhone</oa></iq>");
-    
+	writer = p->getWriter("<iq type=\"get\" id=\"" + std::string(CONNECTION_ID) + "\"><oa xmlns=\"connect.logitech.com\" mime=\"vnd.logitech.connect/vnd.logitech.pair\">token=" + Config::getEntry("HarmonyAuthToken") + ":name=foo#iOS6.0.1#iPhone</oa></iq>");
+		
     HARMONY::SuccessState* ss = new HARMONY::SuccessState(writer);
     
     writer = p->getWriter("</stream:stream>");
     
     HARMONY::IqState* iq = new HARMONY::IqState(); //writer);
     
-    HARMONY::OaState* oa = new HARMONY::OaState();
+    HARMONY::OaSwapTokenState* oa = new HARMONY::OaSwapTokenState();
     
     ds->addHsState(cs);
     
