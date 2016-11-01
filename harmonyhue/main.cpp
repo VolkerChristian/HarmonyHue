@@ -2,12 +2,13 @@
 #include <cstdlib>
 #include <jansson.h>
 #include <list>
+
+#include <argp.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "config.h"
-#include "csocket.h"
 #include "curl.h"
 #include "harmony.h"
 #include "logger.h"
@@ -103,47 +104,167 @@ int requestAuthToken() {
 }
 
 
-int main(int argc, char* argv[]) {
+const char* argp_program_version = "HarmonyHue 0.8";
+
+static char doc[] = "HarmonyHue reacts on state-changes of the harmony hub and sets a flag in the Philips Hue bridge";
+
+static char args_doc[] = "ARG1 [STRING...]";
+
+static struct argp_option options[] = {
+	{"configfile",  'f', "FILE",     0, "Path to a config file", 0},
+	{"nodaemon",    'n', 0,          0, "Do not fork into the background", 1},
+	{"loglevel",    'l', "LEVEL",    0, "Specify the loglevel", 2},
+	{0,              0,  0,          0, "Logitech Harmony options"},
+	{"email",       'e', "EMAIL",    0, "E-Mail address of your logitech account", 3},
+	{"password",    'p', "PASSWORD", 0, "Password of your logitech account", 3},
+	{"harmonyhub",  'h', "HOSTNAME", 0, "Hostname or IP-address of your harmony hub", 3},
+	{0,              0,  0,          0, "Philips Hue options"},
+	{"huebridge",   'b', "HOSTNAME", 0, "Hostname or IP-address of your hue bridge", 4},
+	{"huesensor",   's', "SENSORID", 0, "Sensor id used to arm/disarm the dim-sequence", 4},
+	{"hueusername", 'u', "USERSTR",  0, "String of the white-list of the hue bridge", 4},
+	{0}
+};
+
+struct arguments {
+	int logLevel;
+	bool nodaemon;
+	std::string configFile;
+	std::string email;
+	std::string password;
+	std::string harmonyHub;
+	std::string hueBridge;
+	std::string sensor;
+	std::string hueUserName;
+};
+
+static error_t parse_opt(int key, char* arg, struct argp_state* state) {
+	struct arguments* arguments = (struct arguments*) state->input;
 	
+	switch(key) {
+		case 'f':
+			arguments->configFile = arg;
+		case 'l':
+			arguments->logLevel = atoi(arg);
+			break;
+		case 'n':
+			arguments->nodaemon = true;
+			break;
+		case 'e':
+			arguments->email = arg;
+			break;
+		case 'p':
+			arguments->password = arg;
+			break;
+		case 'h':
+			arguments->harmonyHub = arg;
+			break;
+		case 'b':
+			arguments->hueBridge = arg;
+			break;
+		case 's':
+			arguments->sensor = arg;
+			break;
+		case 'u':
+			arguments->hueUserName = arg;
+			break;
+		default:
+			return ARGP_ERR_UNKNOWN;
+	}
+	return 0;
+};
+
+static struct argp argp = {options, parse_opt, args_doc, doc};
+
+int main(int argc, char* argv[]) {
 	Logger::setToInfo();
-	LogInfo << "LogiHue - Startup";
 	
 	Config::init("config");
 	
+	struct arguments arguments;
+	
+	arguments.nodaemon = false;
+	arguments.logLevel = 5;
+	arguments.email = Config::getEntry("HarmonyEmail");
+	arguments.password = Config::getEntry("HarmonyPassword");
+	arguments.harmonyHub = Config::getEntry("HarmonyHub");
+	arguments.hueBridge = Config::getEntry("HueBridge");
+	arguments.sensor = Config::getEntry("HueSensor");
+	arguments.hueUserName = Config::getEntry("HueUserName");
+	
+	argp_parse(&argp, argc, argv, 0, 0, &arguments);
+	
+	Config::setEntry("HarmonyEmail", arguments.email);
+	Config::setEntry("HarmonyPassword", arguments.password);
+	Config::setEntry("HarmonyHub", arguments.harmonyHub);
+	Config::setEntry("HueBridge", arguments.hueBridge);
+	Config::setEntry("HueSensor", arguments.sensor);
+	Config::setEntry("HueUserName", arguments.hueUserName);
+	
 	Config::printConfig();
 	
-//	Config::close();
+	switch(arguments.logLevel) {
+		case 0:
+			Logger::setToFatal();
+			break;
+		case 1:
+			Logger::setToCrit();
+			break;
+		case 2:
+			Logger::setToError();
+			break;
+		case 3:
+			Logger::setToWarn();
+			break;
+		case 4:
+			Logger::setToNotice();
+			break;
+		case 5:
+			Logger::setToInfo();
+			break;
+		case 6:
+			Logger::setToDebug();
+			break;
+		default:
+			LogInfo << "Wrong log-level " << arguments.logLevel;
+			exit(1);
+	};
 	
-//	exit(0);
+	LogInfo << "LogiHue - Startup";
 	
-	
-    daemonize("logihue");
-//	Logger::setToWarn();
-    
-    LogWarn << "Daemonized: Harmony-Hue";
-	
-    
-    requestAuthToken();
-    
-	
+	if (!arguments.nodaemon) {
+		daemonize("logihue");
+		LogInfo << "Daemonized: Harmony-Hue";
+	}
 
+    requestAuthToken();
 	
-//    exit(0);
-    
-    
-    
-    
-	csocket harmonyCommunicationcsocket;
-//	harmonyCommunicationcsocket.connect(strHarmonyIPAddress.c_str(), harmonyPortNumber);
-	harmonyCommunicationcsocket.connect(Config::getEntry("HarmonyHub").c_str(), HARMONYPORT);
-    
-    
-//    HARMONY::HParser* p = new HARMONY::HParser(&harmonyCommunicationcsocket);
+	/* Connect to harmony hub with guest user
+		* try the authorization token
+		* if ok
+			* receive the session token
+		* if !ok
+			* break parsing
+			* close socket to harmony hub
+			* connect to logitech
+			* receive the authorization token
+			* close socket to logitech
+			* connect to harmony hub with guest user
+				* try the new authorization token
+				* if ok
+					* receive the session token
+				* if !ok
+					* exit
+		* close the socket to harmony hub
+		* connect to harmony hub with session token as user and password
+						* maybe it is enough to authenticate again with session token as user and password
+		* start parsing
+	end connect to harmony hub */
 	
 	HARMONY::HParser* p = new HARMONY::HParser();
 	p->connect();
     
     HARMONY::HWriter* writer = p->getWriter("<stream:stream to='connect.logitech.com' xmlns:stream='http://etherx.jabber.org/streams' xmlns='jabber:client' xml:lang='en' version='1.0'>");
+	
     
     HARMONY::DocumentState* ds = new HARMONY::DocumentState(writer);
     
@@ -153,8 +274,6 @@ int main(int argc, char* argv[]) {
     
     HARMONY::ConnectError* ce = new HARMONY::ConnectError(writer);
     
-	
-	
 	std::string data = "<auth xmlns=\"urn:ietf:params:xml:ns:xmpp-sasl\" mechanism=\"PLAIN\">";
     std::string tmp = "\0";
     tmp.append("guest");

@@ -2,6 +2,7 @@
 #define __HARMONYPARSER_H__
 
 #include <iostream>
+#include <list>
 #include <map>
 #include <stack>
 
@@ -57,6 +58,82 @@ private:
 	
 	friend HParser;
 	friend HState;
+};
+
+class XmlStanza {
+public:
+	XmlStanza(csocket* cSocket) : cSocket(cSocket) {}
+	
+public:
+	std::string buildStanza() {
+		std::string stanza = "<";
+		
+		stanza.append(name);
+		
+		if (!attrList.empty()) {
+			std::list<Attribute>::iterator it;
+			for (it = attrList.begin(); it != attrList.end(); it++) {
+				stanza.append(" " + (*it).name() + "=" + (*it).value());
+			}
+		}
+		
+		if (!text.empty()) {
+			stanza.append(">" + text + "</" + name + ">");
+		} else if (!subStanza.empty()) {
+			stanza.append(">\n");
+			
+			std::list<XmlStanza>::iterator it;
+			for (it = subStanza.begin(); it != subStanza.end(); it++) {
+				stanza.append("\t" + (*it).buildStanza() + "\n");
+			}
+			
+			stanza.append("</" + name + ">");
+		} else {
+			stanza.append("/>");
+		}
+		
+		return stanza;
+	}
+	
+	void setName(std::string name) {
+		this->name = name;
+	}
+		
+	void addAttribute(std::string name, std::string value) {
+		attrList.push_back(Attribute(name, value));
+	}
+		
+	void setText(std::string text) {
+		this->text = text;
+	}
+	
+	void addSubStanza(XmlStanza stanza) {
+		subStanza.push_back(stanza);
+	}
+	
+private:
+	class Attribute {
+	public:
+		Attribute(std::string name, std::string value) : xmlName(name), xmlValue(value) {}
+		
+		std::string name() {
+			return xmlName;
+		}
+		
+		std::string value() {
+			return xmlValue;
+		}
+	
+	private:
+		std::string xmlName;
+		std::string xmlValue;
+	};
+	
+	csocket* cSocket;
+	std::string name;
+	std::string text;
+	std::list<Attribute> attrList;
+	std::list<XmlStanza> subStanza;
 };
 
 
@@ -173,6 +250,10 @@ public:
     
     HWriter* getWriter(std::string text = "") {
 		return new HWriter(cSocket, text);
+	}
+	
+	XmlStanza getXmlStanza() {
+		return XmlStanza(cSocket);
 	}
 
     ERROR hParse();

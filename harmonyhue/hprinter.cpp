@@ -15,27 +15,18 @@ void HParser::p_on_end_document() {
 
 void HParser::p_on_start_element(const Glib::ustring& name,
                                const AttributeList& attributes) {
-    LogDebug << "on_start_element(): node name =" << name;
+    LogDebug << "on_start_element(): " << name;
 
     // Print attributes:
     for(const auto& attr_pair : attributes)
     {
         try
         {
-            LogDebug << "  Attribute name=" <<  attr_pair.name;
+            LogDebug << "  Attribute: " <<  attr_pair.name << " : " << attr_pair.value;
         }
         catch(const Glib::ConvertError& ex)
         {
             LogWarn << "MySaxParser::on_start_element(): Exception caught while converting name for LogDebug: " << ex.what();
-        }
-
-        try
-        {
-            LogDebug << "    , value= " <<  attr_pair.value;
-        }
-        catch(const Glib::ConvertError& ex)
-        {
-            LogWarn << "MySaxParser::on_start_element(): Exception caught while converting value for LogDebug: " << ex.what();
         }
     }
 }

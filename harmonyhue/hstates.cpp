@@ -33,28 +33,28 @@ ERROR EventState::on_cdata_block (const Glib::ustring& text) {
 																		   "/api/" + Config::getEntry("HueUserName") + 
 																		   "/sensors/" + Config::getEntry("HueSensor") + 
 																		   "/state", "{\"flag\" : false}", response);
-					LogInfo << "Philips Hue: unarm motion sensor and reset auto turn off sequence: " << response;
+					LogInfo << "Philips Hue: arm motion sensor and trigger auto turn off sequence: " << response;
                     break;
                 case 1:
 					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
 																		   "/api/" + Config::getEntry("HueUserName") + 
 																		   "/sensors/" + Config::getEntry("HueSensor") + 
 																		   "/state", "{\"flag\" : true}", response);
-					LogInfo << "Philips Hue: unarm motion sensor and reset auto turn off sequence: " << response;
+					LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
                     break;
                 case 2:
 //					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
 //																		   "/api/" + Config::getEntry("HueUserName") + 
 //																		   "/sensors/" + Config::getEntry("HueSensor") + 
 //																		   "/state", "{\"flag\" : true}", response);
-//					LogInfo << "Philips Hue: unarm motion sensor and reset auto turn off sequence: " << response;
+//					LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
                     break;
                 case 3:
 //					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
 //																		   "/api/" + Config::getEntry("HueUserName") + 
 //																		   "/sensors/" + Config::getEntry("HueSensor") + 
 //																		   "/state", "{\"flag\" : true}", response);
-//					LogInfo << "Philips Hue: unarm motion sensor and reset auto turn off sequence: " << response;
+//					LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
                     break;
             }
         }
