@@ -98,7 +98,7 @@ ERROR HParser::hParse() {
 				heardBeat = true;
             }
         }  while(((bytesRead > 0 || errno == EINTR) && error == ERROR::E_SUCCESS) || heardBeat);
-		std::cout << "error value: " << error << std::endl;
+		finish_chunk_parsing();
     }
     catch(const xmlpp::exception& ex) {
         std::cerr << "Incremental parsing, libxml++ exception: " << ex.what() << std::endl;
@@ -107,8 +107,6 @@ ERROR HParser::hParse() {
 
     return return_code;
 }
-
-
 
 
 ERROR HContext::on_start_document() {
@@ -258,9 +256,6 @@ ERROR HContext::on_cdata_block (const Glib::ustring& text) {
 }
 
 
-
-
-// state change notifications
 ERROR HStateAdapter::on_reactivate(std::string deactivatedChild) {
     return ERROR::E_SUCCESS;
 }
@@ -277,7 +272,6 @@ ERROR HStateAdapter::on_start_document() {
 ERROR HStateAdapter::on_end_document() {
     return ERROR::E_SUCCESS;
 }
-
 
 ERROR HStateAdapter::on_start_element(const Glib::ustring& name,
         const xmlpp::SaxParser::AttributeList& attributes) {

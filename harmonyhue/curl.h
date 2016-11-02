@@ -34,8 +34,8 @@ public:
         }
     }
 
-    int post(std::string url, std::string content, std::list<std::string>& header, std::string& response);
-    int put(std::string url, std::string content, std::string& response);
+    int post(std::string url, std::string content, std::list<std::string>& header, std::string& response, bool async = false);
+    int put(std::string url, std::string content, std::string& response, bool async = false);
 
 private:
     static size_t read_cb(void *ptr, size_t size, size_t nmemb, void *stream);

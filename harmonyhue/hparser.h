@@ -29,7 +29,13 @@ enum ERROR {
     E_WRONG_END_ELEMENT,
     E_NO_CURRENT_STATE_TO_END,
     E_CANT_READ_FROM_SOCKET,
-    E_XML_PARSER_EXCEPTION
+    E_XML_PARSER_EXCEPTION,
+	E_AUTH_NO_SESSION_TOKEN,
+	E_AUTH_NOT_SUCCEEDED,
+	E_NOT_CONNECTED,
+	E_WRITE,
+	E_JSON,
+	E_CURL
 };
 
 
@@ -48,9 +54,17 @@ private:
 
 	ERROR write() {
 		LogDebug << "Writing to harmony hub: " << text;
-		cSocket->write(text.c_str(), text.length());
 		
-		return ERROR::E_SUCCESS;
+		ERROR error = ERROR::E_SUCCESS;
+		
+		if (cSocket->write(text.c_str(), text.length()) != text.length()) {
+			error = ERROR::E_WRITE;
+		}
+		
+		if (cSocket->getState() == csocket::SocketState::ERRORED) {
+			error = ERROR::E_WRITE;
+		}
+		return error;
 	}
 	
 	csocket* cSocket;
@@ -168,10 +182,12 @@ public:
         return hsParent;
     }
     
-    virtual HState* write() {
+	ERROR write() {
+		ERROR error = ERROR::E_SUCCESS;
 		if (hWriter != 0) {
-			hWriter->write();
+			error = hWriter->write();
 		}
+		return error;
 	}
     
 protected:
@@ -209,8 +225,12 @@ public:
 
     void setInitialHsState(HState* hState) {
         hsCurrent = hState;
-		hState->write();
+//		hState->write();
     }
+    
+    ERROR write() {
+		return hsCurrent->write();
+	}
 
     ERROR on_start_document();
     ERROR on_end_document();
@@ -236,14 +256,22 @@ public:
 		set_substitute_entities(true);
 	}
 	
-	int connect() {
-		return cSocket->connect(Config::getEntry("HarmonyHub").c_str(), HARMONYPORT);
-	}
-	
     ~HParser() override {
         delete hContext;
+		delete cSocket;
     }
-
+    
+	ERROR connect() {
+		ERROR error = ERROR::E_SUCCESS;
+		
+		if (cSocket->connect(Config::getEntry("HarmonyHub").c_str(), HARMONYPORT) == SUCCESS) {
+			error = hContext->write();
+		} else {
+			error = ERROR::E_NOT_CONNECTED;
+		}
+		return error;	
+	}
+	
     HContext* getHContext() {
         return hContext;
     }

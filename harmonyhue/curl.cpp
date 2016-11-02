@@ -1,8 +1,18 @@
 #include "curl.h"
 
+#include <unistd.h>
+
+#include "hparser.h"
+
 EasyCurl* EasyCurl::easyCurl = 0;
 
-int EasyCurl::post(std::string url, std::string content, std::list<std::string>& header, std::string& response) {
+int EasyCurl::post(std::string url, std::string content, std::list<std::string>& header, std::string& response, bool async) {
+	if (async) {
+		if (fork() != 0) {
+			return HARMONY::ERROR::E_SUCCESS;
+		}
+	}
+	
     CURL *curl = curl_easy_init();
     CURLcode res;
 
@@ -34,7 +44,13 @@ int EasyCurl::post(std::string url, std::string content, std::list<std::string>&
     return res;
 }
 
-int EasyCurl::put(std::string url, std::string content, std::string& response ) {
+int EasyCurl::put(std::string url, std::string content, std::string& response, bool async) {
+	if (async) {
+		if (fork() != 0) {
+			return HARMONY::ERROR::E_SUCCESS;
+		}
+	}
+	
     CURL* curl = curl_easy_init();
     CURLcode res;
 

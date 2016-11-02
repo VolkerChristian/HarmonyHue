@@ -32,14 +32,14 @@ ERROR EventState::on_cdata_block (const Glib::ustring& text) {
 					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
 																		   "/api/" + Config::getEntry("HueUserName") + 
 																		   "/sensors/" + Config::getEntry("HueSensor") + 
-																		   "/state", "{\"flag\" : false}", response);
+																		   "/state", "{\"flag\" : false}", response, false);
 					LogInfo << "Philips Hue: arm motion sensor and trigger auto turn off sequence: " << response;
                     break;
                 case 1:
 					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
 																		   "/api/" + Config::getEntry("HueUserName") + 
 																		   "/sensors/" + Config::getEntry("HueSensor") + 
-																		   "/state", "{\"flag\" : true}", response);
+																		   "/state", "{\"flag\" : true}", response, false);
 					LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
                     break;
                 case 2:
@@ -65,7 +65,7 @@ ERROR EventState::on_cdata_block (const Glib::ustring& text) {
     return ERROR::E_SUCCESS;
 }
 
-ERROR OaSwapTokenState::on_start_element(const Glib::ustring& name,
+ERROR OaState::on_start_element(const Glib::ustring& name,
 										 const xmlpp::SaxParser::AttributeList& attributes) {
 	isPing = false;
 	isPair = false;
@@ -81,22 +81,32 @@ ERROR OaSwapTokenState::on_start_element(const Glib::ustring& name,
 	return ERROR::E_SUCCESS;
 }
 
-ERROR OaSwapTokenState::on_cdata_block (const Glib::ustring& text) {
+ERROR OaState::on_cdata_block (const Glib::ustring& text) {
+	ERROR error = ERROR::E_SUCCESS;
+	
 	if (isPair) {
 		std::string identityTokenTag = "identity=";
-		int pos = (int) text.find(identityTokenTag);
-		std::string sessionToken = text.substr(pos + identityTokenTag.length());
-
-		pos = (int)sessionToken.find(":status=succeeded");
-		sessionToken = sessionToken.substr(0, pos);
-		Config::setSessionEntry("SessionToken", sessionToken);
-	
-		LogInfo << "Got session token: " << sessionToken;
+		
+		size_t pos = text.find(identityTokenTag);
+		if (pos == std::string::npos) {
+			error = ERROR::E_AUTH_NO_SESSION_TOKEN;
+		} else {
+			std::string sessionToken = text.substr(pos + identityTokenTag.length());
+			
+			pos = sessionToken.find(":status=succeeded");
+			if (pos == std::string::npos) {
+				error = ERROR::E_AUTH_NOT_SUCCEEDED;
+			} else {
+				sessionToken = sessionToken.substr(0, pos);
+				Config::setSessionEntry("SessionToken", sessionToken);
+				LogInfo << "Got session token: " << sessionToken;
+			}
+		}
 	} else if (isPing) {
 		LogDebug << "Hub is alive " << Config::getSessionEntry("SessionToken");
 	}
 	
-	return ERROR::E_SUCCESS;
+	return error;
 }
 
 }

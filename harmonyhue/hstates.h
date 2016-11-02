@@ -1,3 +1,6 @@
+#ifndef HSTATES_H
+#define HSTATES_H
+
 #include "hparser.h"
 #include "csocket.h"
 
@@ -10,7 +13,7 @@ public:
     
 class ConnectState : public HStateAdapter {
 public:
-    ConnectState() : HStateAdapter("stream:stream") {}
+    ConnectState(HWriter* writer = 0) : HStateAdapter("stream:stream") {}
 
 protected:
     ERROR on_start_element(const Glib::ustring& name,
@@ -46,7 +49,7 @@ public:
 
 class SuccessState : public HStateAdapter {
 public:
-    SuccessState(HWriter* writer) : HStateAdapter("success", writer) {}
+    SuccessState(HWriter* writer = 0) : HStateAdapter("success", writer) {}
 };
 
 class IqState : public HStateAdapter {
@@ -54,9 +57,9 @@ public:
     IqState(HWriter* writer = 0) : HStateAdapter("iq", writer) {}
 };
 
-class OaSwapTokenState : public HStateAdapter {
+class OaState : public HStateAdapter {
 public:
-    OaSwapTokenState() : HStateAdapter("oa") {}
+    OaState() : HStateAdapter("oa") {}
     
 protected:
     ERROR on_cdata_block (const Glib::ustring& text) override;
@@ -81,3 +84,5 @@ public:
 };
 
 } // END namespace
+
+#endif
