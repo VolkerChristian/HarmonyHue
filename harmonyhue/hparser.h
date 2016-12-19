@@ -21,8 +21,6 @@ namespace HARMONY {
 
 enum ERROR {
     E_SUCCESS = 0,
-    E_CONTINUE,
-	E_BREAK,
     E_END_DOCUMENT,
     E_NO_NEXT_STATE_ERROR,
     E_NO_CURRENT_STATE,
@@ -191,10 +189,6 @@ public:
 	}
     
 protected:
-    // state change notifications
-    virtual ERROR on_reactivate(std::string deactivatedChild) = 0;
-    virtual ERROR on_activate_error(std::string next) = 0;
-
     // xml-events
     virtual ERROR on_start_document() = 0;
     virtual ERROR on_end_document() = 0;
@@ -225,7 +219,6 @@ public:
 
     void setInitialHsState(HState* hState) {
         hsCurrent = hState;
-//		hState->write();
     }
     
     ERROR write() {
@@ -258,6 +251,8 @@ public:
 	
     ~HParser() override {
         delete hContext;
+		
+		cSocket->close();
 		delete cSocket;
     }
     
@@ -329,10 +324,6 @@ public:
     ~HStateAdapter() {}
     
 protected:
-    // state change notifications
-    virtual ERROR on_reactivate(std::string deactivatedChild) override;
-    virtual ERROR on_activate_error(std::string next) override;
-
     // xml-events
     virtual ERROR on_start_document() override;
     virtual ERROR on_end_document() override;

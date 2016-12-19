@@ -16,6 +16,8 @@
 #include "hparser.h"
 #include "hstates.h"
 
+#include "myxmltextreader.h"
+
 static sighandler_t handle_signal (int sig_nr, sighandler_t signalhandler) {
     struct sigaction neu_sig, alt_sig;
     neu_sig.sa_handler = signalhandler;
@@ -29,10 +31,12 @@ static sighandler_t handle_signal (int sig_nr, sighandler_t signalhandler) {
 static void daemonize(const char* logName) {
     int i;
     pid_t pid;
+	
+	LogInfo << "Start daemonizing";
     /* Elternprozess beenden, somit haben wir einen Waisen */
     /* dessen sich jetzt vorerst init annimmt              */
     if ((pid = fork ()) != 0) {
-        exit (EXIT_FAILURE);
+        exit (EXIT_SUCCESS);
     }
     /* Kindprozess wird zum Sessionführer. Misslingt */
     /* dies, kann der Fehler daran liegen, dass der     */
@@ -46,7 +50,7 @@ static void daemonize(const char* logName) {
     /* Oder einfach: signal(SIGHUP, SIG_IGN) ... */
     /* Das Kind terminieren */
     if ((pid = fork ()) != 0) {
-        exit (EXIT_FAILURE);
+        exit (EXIT_SUCCESS);
     }
     /* Gründe für das Arbeitsverzeichnis:
      * + core-Datei wird im aktuellen Arbeitsverzeichnis
@@ -102,7 +106,8 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state) {
 	
 	switch(key) {
 		case 'f':
-			arguments->configFile = arg;
+			Config::change(arg);
+			break;
 		case 'l':
 			arguments->logLevel = atoi(arg);
 			break;
@@ -136,7 +141,9 @@ static error_t parse_opt(int key, char* arg, struct argp_state* state) {
 int main(int argc, char* argv[]) {
 	Logger::setToInfo();
 	
-	Config::init("config");
+	LogInfo << "ConfigFile: " << CONFIG_FILE;
+	
+	Config::init(CONFIG_FILE);
 	
 	struct arguments arguments;
 	
@@ -189,11 +196,18 @@ int main(int argc, char* argv[]) {
 	};
 	
 	LogInfo << "LogiHue - Startup";
-	
+
 	if (!arguments.nodaemon) {
 		daemonize("logihue");
 		LogInfo << "Daemonized: Harmony-Hue";
 	}
-
-	connectToHubAndParse();
+	
+	while (true) {
+		LogInfo << "Trying to connect to Harmony-Hub";
+		connectToHubAndParse();
+		LogError << "Disconnected from Harmony-Hub";
+		sleep(5);
+	}
+	
+	return EXIT_SUCCESS;
 }

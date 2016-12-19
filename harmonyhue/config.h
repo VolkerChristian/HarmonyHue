@@ -23,7 +23,27 @@ public:
 		if (config) {
 			config->oSave();
 			delete config;
+			config = 0;
 		}
+	}
+	
+	static void change(std::string configFile) {
+		Config* newConfig = new Config(configFile);
+		
+		std::map<std::string, std::string>::iterator it;
+		
+		for (it = config->configMap.begin(); it != config->configMap.end(); it++) {
+			newConfig->configMap[(*it).first] = (*it).second;
+		}
+		for (it = config->sessionMap.begin(); it != config->sessionMap.end(); it++) {
+			newConfig->sessionMap[(*it).first] = (*it).second;
+		}
+		
+		close();
+		
+		config = newConfig;
+		
+		save();
 	}
 	
 	int oLoad();

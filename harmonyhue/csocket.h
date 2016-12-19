@@ -39,6 +39,7 @@ public:
     virtual int     read( char* pDataBuffer, unsigned int numBytesToRead, bool bReadAll );
     virtual int     write( const char* pDataBuffer, unsigned int numBytesToWrite );
     SocketState     getState( void ) const;
+	int             getSocket( void ) const { return m_socket; }
 
 
 

@@ -57,8 +57,6 @@ void HParser::on_cdata_block (const Glib::ustring& text) {
 }
 
 ERROR HParser::hParse() {
-    // Incremental parsing, sometimes useful for network connections:
-    ERROR return_code = ERROR::E_SUCCESS;
 	error = ERROR::E_SUCCESS;
 	
     try {
@@ -72,7 +70,7 @@ ERROR HParser::hParse() {
         do {
 			heardBeat = false;
 			if (cSocket->canRead(&canRead, &remainingSecs, remainingSecs) == FAILURE) {
-				return_code = ERROR::E_CANT_READ_FROM_SOCKET;
+				error = ERROR::E_CANT_READ_FROM_SOCKET;
 				break;
 			}
             if (canRead) {
@@ -101,11 +99,11 @@ ERROR HParser::hParse() {
 		finish_chunk_parsing();
     }
     catch(const xmlpp::exception& ex) {
-        std::cerr << "Incremental parsing, libxml++ exception: " << ex.what() << std::endl;
-        return_code = ERROR::E_XML_PARSER_EXCEPTION;
+        LogError << "Incremental parsing, libxml++ exception: " << ex.what();
+        error = ERROR::E_XML_PARSER_EXCEPTION;
     }
 
-    return return_code;
+    return error;
 }
 
 
@@ -142,7 +140,6 @@ ERROR HContext::on_start_element(const Glib::ustring& name,
         if (hsNext) {
             error = (hsCurrent = hsNext)->on_start_element(name, attributes);
         } else {
-            hsCurrent->on_activate_error(name);
             // ERROR no next state found
             error = ERROR::E_NO_NEXT_STATE_ERROR;
         }
@@ -253,15 +250,6 @@ ERROR HContext::on_cdata_block (const Glib::ustring& text) {
     }
 
     return error;
-}
-
-
-ERROR HStateAdapter::on_reactivate(std::string deactivatedChild) {
-    return ERROR::E_SUCCESS;
-}
-
-ERROR HStateAdapter::on_activate_error(std::string next) {
-    return ERROR::E_SUCCESS;
 }
 
 // xml-events

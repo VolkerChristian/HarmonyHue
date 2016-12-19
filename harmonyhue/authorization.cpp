@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <jansson.h>
 
+#include "base64.h"
 #include "curl.h"
 
 #define CONNECTION_ID "12345678-1234-5678-1234-123456789012-1"

@@ -22,41 +22,45 @@ ERROR EventState::on_cdata_block (const Glib::ustring& text) {
 
     if(root) {
         json_t *activityStatus;
+		json_t *runningActivityList;
 
         activityStatus = json_object_get(root, "activityStatus");
+		runningActivityList = json_object_get(root, "runningActivityList");
 
-        if(json_is_integer(activityStatus)) {
-            std::string response;
-            switch (json_integer_value(activityStatus)) {
-                case 0:
-					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
-																		   "/api/" + Config::getEntry("HueUserName") + 
-																		   "/sensors/" + Config::getEntry("HueSensor") + 
-																		   "/state", "{\"flag\" : false}", response, false);
-					LogInfo << "Philips Hue: arm motion sensor and trigger auto turn off sequence: " << response;
-                    break;
-                case 1:
-					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
-																		   "/api/" + Config::getEntry("HueUserName") + 
-																		   "/sensors/" + Config::getEntry("HueSensor") + 
-																		   "/state", "{\"flag\" : true}", response, false);
-					LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
-                    break;
-                case 2:
-//					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
-//																		   "/api/" + Config::getEntry("HueUserName") + 
-//																		   "/sensors/" + Config::getEntry("HueSensor") + 
-//																		   "/state", "{\"flag\" : true}", response);
-//					LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
-                    break;
-                case 3:
-//					EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
-//																		   "/api/" + Config::getEntry("HueUserName") + 
-//																		   "/sensors/" + Config::getEntry("HueSensor") + 
-//																		   "/state", "{\"flag\" : true}", response);
-//					LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
-                    break;
-            }
+        if(json_is_integer(activityStatus) && json_is_string(runningActivityList)) {
+			if (std::string(json_string_value(runningActivityList)).empty()) {
+				std::string response;
+				switch (json_integer_value(activityStatus)) {
+					case 0:
+						EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
+																			   "/api/" + Config::getEntry("HueUserName") + 
+																			   "/sensors/" + Config::getEntry("HueSensor") + 
+																			   "/state", "{\"flag\" : false}", response, false);
+						LogInfo << "Philips Hue: arm motion sensor and trigger auto turn off sequence: " << response;
+						break;
+					case 1:
+						EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
+																			   "/api/" + Config::getEntry("HueUserName") + 
+																			   "/sensors/" + Config::getEntry("HueSensor") + 
+																			   "/state", "{\"flag\" : true}", response, false);
+						LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
+						break;
+					case 2:
+//					    EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
+//																		       "/api/" + Config::getEntry("HueUserName") + 
+//																		       "/sensors/" + Config::getEntry("HueSensor") + 
+//																		       "/state", "{\"flag\" : true}", response);
+//					    LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
+						break;
+					case 3:
+//					    EasyCurl::instance()->put("http://" + Config::getEntry("HueBridge") + 
+//																		       "/api/" + Config::getEntry("HueUserName") + 
+//																		       "/sensors/" + Config::getEntry("HueSensor") + 
+//																		       "/state", "{\"flag\" : true}", response);
+//					    LogInfo << "Philips Hue: disarm motion sensor and reset auto turn off sequence: " << response;
+						break;
+				}
+			}
         }
     }
 
