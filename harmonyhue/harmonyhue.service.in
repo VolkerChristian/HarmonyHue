@@ -1,0 +1,9 @@
+[Unit]
+Description=Controls Philips HUE system due to Activity start/stop of the Logitech Harmony Hub
+After=network.target
+
+[Service]
+ExecStart=${REMOTE_INSTALL_PREFIX}/bin/harmonyhue -n
+
+[Install]
+WantedBy=default.target
